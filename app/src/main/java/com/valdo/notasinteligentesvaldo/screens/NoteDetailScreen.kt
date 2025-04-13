@@ -49,6 +49,9 @@ fun NoteDetailScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     val scrollState = rememberScrollState()
+    val currentDate = remember {
+        SimpleDateFormat("EEEE, d 'de' MMMM", Locale.getDefault()).format(Date())
+    }
 
     // Formateador de fecha
     val dateFormatter = remember {
@@ -88,7 +91,19 @@ fun NoteDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isEditMode) "Editando nota" else dateFormatter.format(Date(note!!.timestamp))) },
+                //title = { Text(if (isEditMode) "Editando nota" else dateFormatter.format(Date(note!!.timestamp))) },
+                title = {
+                    if (isEditMode) {
+                        Text("Editando nota")
+                    } else {
+                        Text(
+                            text = "Hoy es $currentDate",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "Volver")
