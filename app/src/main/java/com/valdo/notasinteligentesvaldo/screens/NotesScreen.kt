@@ -1,63 +1,27 @@
 package com.valdo.notasinteligentesvaldo.screens
 
 import android.content.res.Configuration
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.* // Asegúrate que todos los imports necesarios estén
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Divider
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDrawerState
-import androidx.compose.material3.SearchBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material.icons.filled.* // Asegúrate que todos los iconos estén
+import androidx.compose.material3.*
+import androidx.compose.runtime.* // Asegúrate que todos los imports de runtime estén
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Alignment.Companion.Center
-import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.compose.viewModel // Si no lo pasas como argumento
 import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState // Importar para obtener ruta actual
 import com.valdo.notasinteligentesvaldo.components.NoteCard
 import com.valdo.notasinteligentesvaldo.models.Note
 import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -65,107 +29,126 @@ import kotlinx.coroutines.launch
 fun NotesScreen(
     viewModel: NoteViewModel,
     navController: NavController,
-    onAddNote: () -> Unit = { navController.navigate("addNote") },
-    onNoteClick: (Note) -> Unit = { note -> navController.navigate("noteDetail/${note.id}") }
+    filterType: String, // NUEVO: Parámetro para saber qué mostrar
+    // Quitamos los valores por defecto de onAddNote y onNoteClick si siempre los proveemos desde AppNavigation
+    // onAddNote: () -> Unit,
+    // onNoteClick: (Note) -> Unit
 ) {
-    // Estados observables
-    val notes by viewModel.allNotes.collectAsState()
+    // Lógica para obtener las notas correctas según el filtro
+    // Usamos remember(filterType) para que el StateFlow correcto sea elegido cuando filterType cambie
+    val notesToDisplayState = remember(filterType) {
+        when (filterType) {
+            "favorites" -> viewModel.favoriteNotes
+            else -> viewModel.allNotes // "all" y cualquier otro caso muestran todas las notas
+        }
+    }.collectAsState() // Colecciona el Flow elegido
+
+    val notesToDisplay = notesToDisplayState.value // El valor actual de la lista a mostrar
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    //Cargar notas al iniciar
-    LaunchedEffect(Unit) {
-        viewModel.loadAllNotes()
+    // Cargar datos iniciales o cuando el filtro cambie
+    LaunchedEffect(filterType) {
+        when (filterType) {
+            "favorites" -> viewModel.loadFavorites()
+            else -> viewModel.loadAllNotes() // Carga todas por defecto
+        }
     }
 
-//    LaunchedEffect(Unit) {
-//        viewModel.getNotesWithNotifications().collect { notes ->
-//            notes.forEach { note ->
-//                scheduleNotification(note)
-//            }
-//        }
-//    }
+    // Para saber qué item del drawer está seleccionado
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    // Extraer el filtro de la ruta actual para la selección del drawer
+    val currentFilter = navBackStackEntry?.arguments?.getString("filterType") ?: "all"
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
                 Spacer(Modifier.height(16.dp))
+                // Item Inicio
                 NavigationDrawerItem(
                     label = { Text("Inicio") },
-                    selected = navController.currentDestination?.route == "notes",
+                    // Seleccionado si la ruta empieza con "notes" Y el filtro es "all"
+                    selected = currentRoute?.startsWith("notes") == true && currentFilter == "all",
                     onClick = {
                         scope.launch { drawerState.close() }
-                        navController.navigate("notes") { popUpTo("notes") }
-                        viewModel.loadAllNotes()
+                        // Navega a la ruta 'notes' especificando el filtro 'all'
+                        navController.navigate("notes?filter=all") {
+                            popUpTo(navController.graph.startDestinationId) // Limpia stack hasta el inicio
+                            launchSingleTop = true // Evita duplicados de la pantalla de inicio
+                        }
+                        // No es necesario llamar a viewModel.loadAllNotes() aquí,
+                        // el LaunchedEffect se encargará al cambiar la ruta/filtro.
                     },
-                    icon = { Icon(Icons.Default.Home, contentDescription = null) }
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") }
                 )
+                // Item Favoritas
                 NavigationDrawerItem(
                     label = { Text("Favoritas") },
-                    selected = navController.currentDestination?.route == "favorites",
-                    onClick = {
-                        scope.launch {
-                            drawerState.close()
-                            navController.navigate("favorites")
-                            viewModel.loadFavorites()
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Favorite, contentDescription = null) }
-                )
-                NavigationDrawerItem(
-                    label = { Text("Categorías") },
-                    selected = navController.currentDestination?.route == "categories",
-                    onClick = {
-                        scope.launch {
-                            drawerState.close()
-                            navController.navigate("categories")
-                            viewModel.loadFavorites()
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Info, contentDescription = null) }
-                )
-                androidx.compose.material3.HorizontalDivider()
-                NavigationDrawerItem(
-                    label = { Text("Ajustes") },
-                    selected = navController.currentDestination?.route == "settings",
+                    // Seleccionado si la ruta empieza con "notes" Y el filtro es "favorites"
+                    selected = currentRoute?.startsWith("notes") == true && currentFilter == "favorites",
                     onClick = {
                         scope.launch { drawerState.close() }
-                        navController.navigate("settings")
+                        // Navega a la ruta 'notes' especificando el filtro 'favorites'
+                        navController.navigate("notes?filter=favorites") {
+                            launchSingleTop = true // Evita duplicados si ya estás en favoritas
+                            // Opcional: popUpTo como en Inicio si quieres limpiar el stack también
+                            // popUpTo(navController.graph.startDestinationId)
+                        }
+                        // No es necesario llamar a viewModel.loadFavorites() aquí,
+                        // el LaunchedEffect se encargará.
                     },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) }
+                    icon = { Icon(Icons.Default.Favorite, contentDescription = "Favoritas") }
                 )
-
+                // Item Categorías (ejemplo, si lo implementas)
+                NavigationDrawerItem(
+                    label = { Text("Categorías") },
+                    selected = currentRoute == "categories", // Asumiendo una ruta "categories" separada
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        // navController.navigate("categories") // Navegar a la ruta de categorías
+                    },
+                    icon = { Icon(Icons.Default.Menu, contentDescription = "Categorías") } // Cambiar icono si es necesario
+                )
+                HorizontalDivider() // Usar HorizontalDivider de Material 3
+                // Item Ajustes
+                NavigationDrawerItem(
+                    label = { Text("Ajustes") },
+                    selected = currentRoute == "settings", // Asumiendo una ruta "settings" separada
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        // navController.navigate("settings") // Navegar a la ruta de ajustes
+                    },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") }
+                )
             }
         }
     ) {
         Scaffold(
             floatingActionButton = {
                 FloatingActionButton(
-                    onClick = onAddNote,
-                    //modifier = Modifier.size(70.dp)
-                    modifier = Modifier
-                        .defaultMinSize(minWidth = 150.dp, minHeight = 56.dp), // Ajusta el ancho mínimo
+                    onClick = { navController.navigate("addNote") }, // Navega a la pantalla de añadir nota
+                    modifier = Modifier.defaultMinSize(minWidth = 150.dp, minHeight = 56.dp),
+                    containerColor = MaterialTheme.colorScheme.primary // Color del FAB
                 ) {
-                    //Icon(Icons.Default.Add, contentDescription = "Agregar nota")
                     Row(
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Opcional: si quieres un icono
-                        // Icon(Icons.Default.Add, contentDescription = "Agregar nota")
-                        // Spacer(modifier = Modifier.width(8.dp)) // Espacio entre icono y texto
                         Text(
                             text = "Nueva nota :)",
-                            style = MaterialTheme.typography.bodyLarge, // Ajusta el estilo según tus necesidades
-                            color = MaterialTheme.colorScheme.onPrimary
+                            style = MaterialTheme.typography.labelLarge, // Usar labelLarge para FAB texto
+                            color = MaterialTheme.colorScheme.onPrimary // Color del texto sobre el FAB
                         )
-                }}
+                    }
+                }
             },
             topBar = {
                 TopAppBar(
-                    title = { Text("Mis Notas") },
+                    // MODIFICADO: Título cambia según el filtro
+                    title = { Text(if (filterType == "favorites") "Notas Favoritas" else "Mis Notas") },
                     navigationIcon = {
                         IconButton(
                             onClick = { scope.launch { drawerState.open() } }
@@ -175,52 +158,74 @@ fun NotesScreen(
                     },
                     actions = {
                         IconButton(
-                            onClick = { viewModel.loadAllNotes() }
+                            onClick = {
+                                // MODIFICADO: Refrescar según el filtro actual
+                                when (filterType) {
+                                    "favorites" -> viewModel.loadFavorites()
+                                    else -> viewModel.loadAllNotes()
+                                }
+                            }
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refrescar")
                         }
                     }
-                )}
-        )  { padding ->
+                )
+            }
+        ) { padding ->
             Box(modifier = Modifier.padding(padding)) {
-                if (notes.isEmpty()) {
-                    Text(
-                        "¡Crea tu primera nota!",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .wrapContentSize(),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                } else {
-                    NotesGrid(notes = notes, onNoteClick = onNoteClick)
+                // Usa Crossfade para animar el cambio entre la lista vacía y la llena
+                Crossfade(
+                    targetState = notesToDisplay.isEmpty(), // El estado que determina qué mostrar
+                    label = "NotesGridCrossfade", // Etiqueta para debugging de animación
+                    animationSpec = tween(durationMillis = 300) // Duración de la animación (ajustable)
+                ) { isEmpty ->
+                    if (isEmpty) {
+                        // El estado cuando la lista está vacía
+                        val emptyMessage = when(filterType) {
+                            "favorites" -> "Aún no tienes notas favoritas."
+                            else -> "¡Crea tu primera nota!"
+                        }
+                        EmptyNotesMessage(message = emptyMessage)
+                    } else {
+                        // El estado cuando la lista NO está vacía
+                        NotesGrid(
+                            notes = notesToDisplay,
+                            onNoteClick = { note -> navController.navigate("noteDetail/${note.id}") }
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+// MODIFICADO: EmptyNotesMessage para aceptar un mensaje
 @Composable
-private fun EmptyNotesMessage() {
+private fun EmptyNotesMessage(message: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .wrapContentSize(),
-        contentAlignment = Center
+            .padding(16.dp), // Añadir padding para que no esté pegado a los bordes
+        contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = CenterHorizontally) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                Icons.Default.Add,
-                contentDescription = "Notas vacías",
-                modifier = Modifier.size(48.dp)
+                // Cambiar icono según el contexto podría ser útil, pero mantenemos uno genérico
+                imageVector = Icons.Default.Warning, // Icono alternativo
+                contentDescription = null, // Descripción es proporcionada por el texto
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) // Color más suave
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "¡Crea tu primera nota!",
-                style = MaterialTheme.typography.headlineSmall
+                text = message, // Usa el mensaje pasado como argumento
+                style = MaterialTheme.typography.bodyLarge, // Quizás un estilo más adecuado
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
             )
         }
     }
 }
+
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -236,7 +241,7 @@ fun NotesGrid(notes: List<Note>, onNoteClick: (Note) -> Unit) {
         verticalItemSpacing = 8.dp
     ) {
         items(notes, key = { it.id }) { note ->
-            NoteCard(note, onNoteClick)
+            NoteCard(note = note, onNoteClick = onNoteClick) // Asegúrate que NoteCard esté bien definido
         }
     }
 }

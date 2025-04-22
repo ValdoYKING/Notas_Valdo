@@ -12,6 +12,9 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Face
+// NUEVO: Importar iconos de corazón
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -22,6 +25,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+// NUEVO: Importar Color si quieres un color específico como Rojo
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -81,7 +86,12 @@ fun NoteDetailScreen(
         }
     }
 
-    if (note == null) {
+    // --- Protección contra nota nula ---
+    // Guardamos la nota actual en una variable local para asegurar que no sea nula
+    // dentro del Scaffold, ya que la comprobación inicial ya se hizo.
+    val currentNote = note
+
+    if (currentNote == null) { // MODIFICADO: Usar la variable local
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Center) {
             CircularProgressIndicator()
         }
@@ -91,7 +101,6 @@ fun NoteDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                //title = { Text(if (isEditMode) "Editando nota" else dateFormatter.format(Date(note!!.timestamp))) },
                 title = {
                     if (isEditMode) {
                         Text("Editando nota")
@@ -110,12 +119,27 @@ fun NoteDetailScreen(
                     }
                 },
                 actions = {
-                    // Botón para cambiar entre Markdown/Texto normal
-                    // Botón de eliminar (visible siempre)
+                    // --- NUEVO: Botón Favorito ---
+                    IconButton(
+                        onClick = {
+                            // Llama a la función del ViewModel para cambiar el estado de favorito
+                            viewModel.toggleFavorite(currentNote.id)
+                        }
+                    ) {
+                        Icon(
+                            // Cambia el icono según si la nota es favorita o no
+                            imageVector = if (currentNote.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (currentNote.isFavorite) "Quitar de favoritas" else "Marcar como favorita",
+                            // Opcional: Cambia el color si es favorita
+                            tint = if (currentNote.isFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current // Puedes usar Color.Red o primary
+                        )
+                    }
+                    // --- FIN NUEVO ---
+
                     // Botón de eliminar
                     IconButton(
                         onClick = { showDeleteDialog = true },
-                        modifier = Modifier.padding(end = 8.dp)
+                        // modifier = Modifier.padding(end = 8.dp) // Quitar padding si quieres que estén más juntos
                     ) {
                         Icon(
                             Icons.Default.Delete,
@@ -123,6 +147,8 @@ fun NoteDetailScreen(
                             tint = MaterialTheme.colorScheme.error
                         )
                     }
+
+                    // Botón de formato (solo en modo edición)
                     if (isEditMode) {
                         IconButton(
                             onClick = {
@@ -132,8 +158,8 @@ fun NoteDetailScreen(
                             }
                         ) {
                             Icon(
-                                if (note!!.isMarkdownEnabled) Icons.Default.Star else Icons.Default.Clear,
-                                contentDescription = "Formato",
+                                if (currentNote.isMarkdownEnabled) Icons.Default.Star else Icons.Default.Clear, // MODIFICADO: usar currentNote
+                                contentDescription = "Formato Markdown",
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -143,7 +169,7 @@ fun NoteDetailScreen(
                     IconButton(
                         onClick = {
                             if (isEditMode) {
-                                viewModel.saveCurrentNote()
+                                viewModel.saveCurrentNote() // Guarda la nota actual (incluyendo estado de favorito si cambió)
                             }
                             isEditMode = !isEditMode
                         }
@@ -166,7 +192,7 @@ fun NoteDetailScreen(
             if (isEditMode) {
                 // MODO EDICIÓN
                 BasicTextField(
-                    value = note?.title ?: "",
+                    value = currentNote.title, // MODIFICADO: usar currentNote
                     onValueChange = { newTitle ->
                         viewModel.updateCurrentNote { it.copy(title = newTitle) }
                     },
@@ -179,7 +205,7 @@ fun NoteDetailScreen(
                     ),
                     decorationBox = { innerTextField ->
                         Box {
-                            if (note?.title.isNullOrEmpty()) {
+                            if (currentNote.title.isEmpty()) { // MODIFICADO: usar currentNote
                                 Text(
                                     "Título (opcional)",
                                     style = MaterialTheme.typography.titleLarge.copy(
@@ -196,16 +222,16 @@ fun NoteDetailScreen(
                 Divider(modifier = Modifier.padding(horizontal = 16.dp))
 
                 // Editor de contenido (Markdown o texto normal)
-                if (note!!.isMarkdownEnabled) {
-                    MarkdownEditor(
-                        content = note?.content ?: "",
+                if (currentNote.isMarkdownEnabled) { // MODIFICADO: usar currentNote
+                    MarkdownEditor( // Asegúrate de que este Composable exista y funcione
+                        content = currentNote.content, // MODIFICADO: usar currentNote
                         onContentChange = { newContent ->
                             viewModel.updateCurrentNote { it.copy(content = newContent) }
                         }
                     )
                 } else {
                     BasicTextField(
-                        value = note?.content ?: "",
+                        value = currentNote.content, // MODIFICADO: usar currentNote
                         onValueChange = { newContent ->
                             viewModel.updateCurrentNote { it.copy(content = newContent) }
                         },
@@ -227,62 +253,70 @@ fun NoteDetailScreen(
                         .padding(16.dp)
                         .verticalScroll(scrollState)
                 ) {
-                    note?.let { currentNote ->
-                        if (currentNote.title.isNotEmpty() && currentNote.title != "Nota sin título") {
-                            Text(
-                                text = currentNote.title,
-                                style = MaterialTheme.typography.headlineMedium.copy(
-                                    color = MaterialTheme.colorScheme.primary
-                                ),
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                        }
+                    // Ya no necesitamos el let porque usamos currentNote que sabemos no es null aquí
+                    if (currentNote.title.isNotEmpty() && currentNote.title != "Nota sin título") {
+                        Text(
+                            text = currentNote.title,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                color = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
 
-                        if (currentNote.isMarkdownEnabled) {
-                            MarkdownText(
-                                markdown = currentNote.content,
-                                modifier = Modifier.fillMaxWidth(),
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            )
-                        } else {
-                            Text(
-                                text = currentNote.content,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    lineHeight = 28.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // Pie de nota con metadatos
-                        Column(
+                    if (currentNote.isMarkdownEnabled) {
+                        MarkdownText(
+                            markdown = currentNote.content,
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.End
-                        ) {
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                    } else {
+                        Text(
+                            text = currentNote.content,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                lineHeight = 28.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Pie de nota con metadatos
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Text(
+                            text = "Creada: ${dateFormatter.format(Date(currentNote.timestampInit))}",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        )
+                        Text(
+                            text = "Modificada: ${dateFormatter.format(Date(currentNote.timestamp))}",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        )
+                        if (currentNote.isMarkdownEnabled) {
                             Text(
-                                text = "Creada: ${dateFormatter.format(Date(currentNote.timestampInit))}",
+                                text = "Formato: Markdown",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                                 )
                             )
+                        }
+                        // NUEVO: Mostrar si es favorita en los metadatos
+                        if (currentNote.isFavorite) {
                             Text(
-                                text = "Modificada: ${dateFormatter.format(Date(currentNote.timestamp))}",
+                                text = "Favorita ⭐", // Puedes usar un emoji o texto
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f) // Usar un color distintivo
                                 )
                             )
-                            if (currentNote.isMarkdownEnabled) {
-                                Text(
-                                    text = "Formato: Markdown",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                                    )
-                                )
-                            }
                         }
                     }
                 }
@@ -297,10 +331,9 @@ fun NoteDetailScreen(
                     confirmButton = {
                         TextButton(
                             onClick = {
-                                note?.let {
-                                    viewModel.deleteNote(it)
-                                    onBack()
-                                }
+                                // No necesitamos el let aquí porque currentNote no es null
+                                viewModel.deleteNote(currentNote)
+                                onBack() // Vuelve atrás después de eliminar
                                 showDeleteDialog = false
                             }
                         ) {
@@ -320,3 +353,4 @@ fun NoteDetailScreen(
         }
     }
 }
+
