@@ -38,43 +38,25 @@ fun AppNavigation(
                 defaultValue = "all"
                 nullable = false
             }),
-            // Transiciones para ENTRAR a NotesScreen desde otra pantalla (ej: Detail)
             enterTransition = {
-                slideIntoContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Right, // Entra desde la derecha
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
             },
-            // Transiciones para SALIR de NotesScreen hacia otra pantalla (ej: Detail)
             exitTransition = {
-                slideOutOfContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Left, // Sale hacia la izquierda
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
             },
-            // Transiciones cuando se vuelve a NotesScreen usando popBackStack (ej: desde Detail)
             popEnterTransition = {
-                slideIntoContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Right,
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
             },
-            // Transiciones cuando NotesScreen es eliminada del stack al volver atrás
             popExitTransition = {
-                slideOutOfContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Left,
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
             }
-            // NOTA: Las transiciones entre 'notes?filter=all' y 'notes?filter=favorites'
-            // usualmente no usan estas animaciones porque no es un cambio de destino completo
-            // en el backstack, sino una actualización. El Crossfade dentro de NotesScreen ayuda aquí.
         ) { backStackEntry ->
             val filterType = backStackEntry.arguments?.getString("filterType") ?: "all"
             NotesScreen(
                 viewModel = viewModel,
                 navController = navController,
-                filterType = filterType
+                filterType = filterType,
+                onAddNote = { navController.navigate("addNote") }
             )
         }
 
@@ -82,28 +64,16 @@ fun AppNavigation(
         composable(
             route = "addNote",
             enterTransition = {
-                slideIntoContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Left, // Entra desde la izquierda
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
             },
             exitTransition = {
-                slideOutOfContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Right, // Sale hacia la derecha
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
             },
-            popEnterTransition = { // Al volver de una pantalla superior (si la hubiera)
-                slideIntoContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Left,
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
             },
-            popExitTransition = { // Al presionar back desde esta pantalla
-                slideOutOfContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Right,
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+            popExitTransition = {
+                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
             }
         ) {
             NoteFormScreen(
@@ -120,28 +90,16 @@ fun AppNavigation(
             route = "noteDetail/{noteId}",
             arguments = listOf(navArgument("noteId") { type = NavType.IntType }),
             enterTransition = {
-                slideIntoContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Left, // Entra desde la izquierda
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
             },
             exitTransition = {
-                slideOutOfContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Right, // Sale hacia la derecha
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
             },
-            popEnterTransition = { // Al volver de una pantalla superior (si la hubiera)
-                slideIntoContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Left,
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
             },
-            popExitTransition = { // Al presionar back desde esta pantalla
-                slideOutOfContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Right,
-                    animationSpec = tween(NAV_ANIM_DURATION)
-                ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+            popExitTransition = {
+                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
             }
         ) { backStackEntry ->
             val noteId = backStackEntry.arguments?.getInt("noteId")

@@ -4,6 +4,8 @@ import android.content.res.Configuration
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.* // Asegúrate que todos los imports necesarios estén
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
@@ -23,6 +25,8 @@ import com.valdo.notasinteligentesvaldo.components.NoteCard
 import com.valdo.notasinteligentesvaldo.models.Note
 import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.painterResource
+import com.valdo.notasinteligentesvaldo.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -30,9 +34,7 @@ fun NotesScreen(
     viewModel: NoteViewModel,
     navController: NavController,
     filterType: String, // NUEVO: Parámetro para saber qué mostrar
-    // Quitamos los valores por defecto de onAddNote y onNoteClick si siempre los proveemos desde AppNavigation
-    // onAddNote: () -> Unit,
-    // onNoteClick: (Note) -> Unit
+    onAddNote: () -> Unit // Agregado parámetro para crear nueva nota
 ) {
     // Lógica para obtener las notas correctas según el filtro
     // Usamos remember(filterType) para que el StateFlow correcto sea elegido cuando filterType cambie
@@ -172,20 +174,27 @@ fun NotesScreen(
                 )
             }
         ) { padding ->
-            Box(modifier = Modifier.padding(padding)) {
+            Box(
+                modifier = Modifier
+                    .padding(padding)
+                    .background(MaterialTheme.colorScheme.background) // Fondo consistente con el tema
+            ) {
                 // Usa Crossfade para animar el cambio entre la lista vacía y la llena
                 Crossfade(
-                    targetState = notesToDisplay.isEmpty(), // El estado que determina qué mostrar
-                    label = "NotesGridCrossfade", // Etiqueta para debugging de animación
-                    animationSpec = tween(durationMillis = 300) // Duración de la animación (ajustable)
+                    targetState = notesToDisplay.isEmpty(),
+                    label = "NotesGridCrossfade",
+                    animationSpec = tween(durationMillis = 300)
                 ) { isEmpty ->
                     if (isEmpty) {
-                        // El estado cuando la lista está vacía
                         val emptyMessage = when(filterType) {
                             "favorites" -> "Aún no tienes notas favoritas."
                             else -> "¡Crea tu primera nota!"
                         }
-                        EmptyNotesMessage(message = emptyMessage)
+                        EmptyNotesMessage(
+                            message = emptyMessage,
+                            onAddNoteClick = onAddNote,
+                            isFavorites = filterType == "favorites"
+                        )
                     } else {
                         // El estado cuando la lista NO está vacía
                         NotesGrid(
@@ -199,27 +208,29 @@ fun NotesScreen(
     }
 }
 
-// MODIFICADO: EmptyNotesMessage para aceptar un mensaje
+// MODIFICADO: EmptyNotesMessage para aceptar un mensaje y callback de click
 @Composable
-private fun EmptyNotesMessage(message: String) {
+private fun EmptyNotesMessage(message: String, onAddNoteClick: () -> Unit, isFavorites: Boolean = false) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp), // Añadir padding para que no esté pegado a los bordes
+            .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val iconRes = if (isFavorites) R.drawable.sentiment_sad_24px else R.drawable.add_notes_24px
             Icon(
-                // Cambiar icono según el contexto podría ser útil, pero mantenemos uno genérico
-                imageVector = Icons.Default.Warning, // Icono alternativo
-                contentDescription = null, // Descripción es proporcionada por el texto
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) // Color más suave
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clickable { if (!isFavorites) onAddNoteClick() }, // Solo clickeable si no es favoritos
+                tint = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                text = message, // Usa el mensaje pasado como argumento
-                style = MaterialTheme.typography.bodyLarge, // Quizás un estilo más adecuado
+                text = message,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
             )
         }

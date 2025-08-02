@@ -19,6 +19,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -30,6 +31,7 @@ import com.valdo.notasinteligentesvaldo.models.Note
 import dev.jeziellago.compose.markdowntext.MarkdownText
 import java.text.SimpleDateFormat
 import java.util.*
+import com.valdo.notasinteligentesvaldo.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -65,8 +67,9 @@ fun NoteFormScreen(
                         onClick = { isMarkdownEnabled = !isMarkdownEnabled },
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
+                        val markdownIcon = if (isMarkdownEnabled) R.drawable.code_off_24px else R.drawable.code_24px
                         Icon(
-                            imageVector = Icons.Default.Star,
+                            painter = painterResource(id = markdownIcon),
                             contentDescription = "Markdown",
                             tint = if (isMarkdownEnabled) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant
@@ -83,7 +86,7 @@ fun NoteFormScreen(
                                 isMarkdownEnabled = isMarkdownEnabled
                             )
                             onNoteSaved(newNote)
-                            onBack()
+                            // Eliminado: onBack() aquí para evitar doble navegación
                         },
                         enabled = content.isNotBlank() || title.isNotBlank()
                     ) {
@@ -164,7 +167,8 @@ fun NoteFormScreen(
                         .focusRequester(focusRequester),
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                         fontSize = 18.sp,
-                        lineHeight = 28.sp
+                        lineHeight = 28.sp,
+                        color = MaterialTheme.colorScheme.onSurface // Color legible en modo oscuro
                     ),
                     decorationBox = { innerTextField ->
                         if (content.isEmpty()) {
@@ -213,9 +217,10 @@ fun MarkdownEditor(
                 Text("Link")
             }
             IconButton(onClick = { preview = !preview }) {
+                val previewIcon = if (preview) R.drawable.visibility_off_24px else R.drawable.visibility_24px
                 Icon(
-                    if (preview) Icons.Default.Star else Icons.Default.Face, // Corregido aquí
-                    "Vista previa"
+                    painter = painterResource(id = previewIcon),
+                    contentDescription = "Vista previa"
                 )
             }
         }

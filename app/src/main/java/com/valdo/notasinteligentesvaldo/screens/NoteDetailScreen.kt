@@ -28,6 +28,8 @@ import androidx.compose.ui.focus.focusRequester
 // NUEVO: Importar Color si quieres un color específico como Rojo
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
+import com.valdo.notasinteligentesvaldo.R
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -157,8 +159,9 @@ fun NoteDetailScreen(
                                 }
                             }
                         ) {
+                            val markdownIcon = if (currentNote.isMarkdownEnabled) R.drawable.code_off_24px else R.drawable.code_24px
                             Icon(
-                                if (currentNote.isMarkdownEnabled) Icons.Default.Star else Icons.Default.Clear, // MODIFICADO: usar currentNote
+                                painter = painterResource(id = markdownIcon),
                                 contentDescription = "Formato Markdown",
                                 tint = MaterialTheme.colorScheme.primary
                             )
@@ -223,12 +226,45 @@ fun NoteDetailScreen(
 
                 // Editor de contenido (Markdown o texto normal)
                 if (currentNote.isMarkdownEnabled) { // MODIFICADO: usar currentNote
-                    MarkdownEditor( // Asegúrate de que este Composable exista y funcione
-                        content = currentNote.content, // MODIFICADO: usar currentNote
-                        onContentChange = { newContent ->
-                            viewModel.updateCurrentNote { it.copy(content = newContent) }
+                    var preview by remember { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        IconButton(onClick = { preview = !preview }) {
+                            val previewIcon = if (preview) R.drawable.visibility_off_24px else R.drawable.visibility_24px
+                            Icon(
+                                painter = painterResource(id = previewIcon),
+                                contentDescription = "Vista previa"
+                            )
                         }
-                    )
+                    }
+                    if (preview) {
+                        MarkdownText(
+                            markdown = currentNote.content,
+                            modifier = Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                    } else {
+                        BasicTextField(
+                            value = currentNote.content, // MODIFICADO: usar currentNote
+                            onValueChange = { newContent ->
+                                viewModel.updateCurrentNote { it.copy(content = newContent) }
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                                .focusRequester(focusRequester),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                    }
                 } else {
                     BasicTextField(
                         value = currentNote.content, // MODIFICADO: usar currentNote
@@ -353,4 +389,3 @@ fun NoteDetailScreen(
         }
     }
 }
-

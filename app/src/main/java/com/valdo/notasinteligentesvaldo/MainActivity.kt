@@ -17,6 +17,8 @@ import kotlinx.coroutines.launch
 
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.lifecycle.ViewModelProvider
 import com.valdo.notasinteligentesvaldo.data.NoteDao
 import com.valdo.notasinteligentesvaldo.ui.theme.NotasInteligentesValdoTheme
@@ -31,9 +33,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             NotasInteligentesValdoTheme {
-                AppNavigation(
-                    viewModel = noteViewModel // Pasamos el ViewModel creado
-                )
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    AppNavigation(
+                        viewModel = noteViewModel // Pasamos el ViewModel creado
+                    )
+                }
             }
         }
     }
