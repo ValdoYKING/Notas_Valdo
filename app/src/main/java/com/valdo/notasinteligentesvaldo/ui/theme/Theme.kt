@@ -59,7 +59,9 @@ fun NotasInteligentesValdoTheme(
 
         // Cambiar el color del texto de la barra de estado según el tema
         insetsController.isAppearanceLightStatusBars = !darkTheme
-        window.statusBarColor = colorScheme.background.toArgb()
+        // Removido: window.statusBarColor = colorScheme.background.toArgb() - Deprecated
+        // En su lugar, usar WindowInsetsController para manejar la apariencia
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
     }
 
     MaterialTheme(

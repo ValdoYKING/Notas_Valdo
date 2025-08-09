@@ -17,14 +17,14 @@ abstract class NoteDatabase : RoomDatabase() {
     companion object {
         // Migración de versión 1 a 2
         val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(database: SupportSQLiteDatabase) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 // Añade todos los nuevos campos
-                database.execSQL("ALTER TABLE notes ADD COLUMN timestampInit INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE notes ADD COLUMN location TEXT")
-                database.execSQL("ALTER TABLE notes ADD COLUMN notificationTime INTEGER")
-                database.execSQL("ALTER TABLE notes ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
-                database.execSQL("ALTER TABLE notes ADD COLUMN category TEXT")
-                database.execSQL("ALTER TABLE notes ADD COLUMN isMarkdownEnabled INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE notes ADD COLUMN timestampInit INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE notes ADD COLUMN location TEXT")
+                db.execSQL("ALTER TABLE notes ADD COLUMN notificationTime INTEGER")
+                db.execSQL("ALTER TABLE notes ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE notes ADD COLUMN category TEXT")
+                db.execSQL("ALTER TABLE notes ADD COLUMN isMarkdownEnabled INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

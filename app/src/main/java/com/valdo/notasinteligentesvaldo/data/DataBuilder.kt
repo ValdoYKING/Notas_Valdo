@@ -15,7 +15,7 @@ object DatabaseBuilder {
                     "note_database"
                 )
                     .addMigrations(NoteDatabase.MIGRATION_1_2)  // Añade la migración
-                    .fallbackToDestructiveMigration() // Solo para desarrollo
+                    .fallbackToDestructiveMigration(false) // Actualizado: especifica parámetro
                     .build()
             }
         }
