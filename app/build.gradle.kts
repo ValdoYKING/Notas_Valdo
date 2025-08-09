@@ -2,28 +2,26 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    kotlin("kapt") // Habilitar KAPT para Room.
+    alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.valdo.notasinteligentesvaldo"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.valdo.notasinteligentesvaldo"
         minSdk = 28
-        targetSdk = 35
+        targetSdk = 35  // Actualizado a la versión más reciente
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
 
-        // Configuración para Room schema export
-        kapt {
-            arguments {
-                arg("room.schemaLocation", "$projectDir/schemas")
-            }
-        }
+    // Configuración para Room schema export - Actualizada para KSP
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 
     buildTypes {
@@ -59,7 +57,7 @@ dependencies {
     //Add navigation
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.room.runtime)
-    kapt(libs.androidx.room.compiler) // Asegúrate de que kapt esté habili
+    ksp(libs.androidx.room.compiler) // Cambiado de kapt a ksp
     implementation(libs.androidx.room.ktx) // Esto permite usar corrutinas con Room.
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)

@@ -9,7 +9,6 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowInsetsControllerCompat
@@ -57,11 +56,22 @@ fun NotasInteligentesValdoTheme(
         val window = activity.window
         val insetsController = WindowInsetsControllerCompat(window, window.decorView)
 
-        // Cambiar el color del texto de la barra de estado según el tema
+        // Configuración moderna de la barra de estado
         insetsController.isAppearanceLightStatusBars = !darkTheme
-        // Removido: window.statusBarColor = colorScheme.background.toArgb() - Deprecated
-        // En su lugar, usar WindowInsetsController para manejar la apariencia
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
+
+        // Configuración moderna para todas las versiones de Android
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // API 30+ (Android 11+): Usar WindowInsetsController moderno
+            window.insetsController?.let { controller ->
+                controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            // API 28-29: Configuración para versiones anteriores a Android 11
+            @Suppress("DEPRECATION")
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        }
     }
 
     MaterialTheme(
