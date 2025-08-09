@@ -10,9 +10,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * ViewModel principal para la gestión de notas.
+ *
+ * - Expone estados observables para la UI (todas las notas, favoritas, nota actual).
+ * - Maneja operaciones CRUD y sincronización con Room.
+ * - Permite búsquedas, favoritos, markdown y notificaciones.
+ *
+ * @param noteDao DAO de acceso a datos de Room.
+ */
 class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
 
-    // Estados observables
+    // --- Estados observables para la UI ---
     private val _allNotes = MutableStateFlow<List<Note>>(emptyList())
     val allNotes: StateFlow<List<Note>> = _allNotes
 
@@ -22,13 +31,16 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
     private val _currentNote = MutableStateFlow<Note?>(null)
     val currentNote: StateFlow<Note?> = _currentNote.asStateFlow()
 
-    // Carga inicial
+    // --- Inicialización: carga notas y favoritas al crear el ViewModel ---
     init {
         loadAllNotes()
         loadFavorites()
     }
 
-    // Carga y sincronización de la nota actual
+    /**
+     * Carga una nota específica y la expone como estado observable.
+     * @param noteId ID de la nota a cargar.
+     */
     fun loadNote(noteId: Int) {
         viewModelScope.launch {
             noteDao.getNoteById(noteId).collect { note ->
@@ -37,42 +49,39 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         }
     }
 
-    // Actualización temporal optimizada
+    /**
+     * Actualiza temporalmente la nota actual en memoria (no persiste en base de datos).
+     * Útil para edición en tiempo real.
+     */
     fun updateCurrentNote(updater: (Note) -> Note) {
         _currentNote.value?.let { current ->
             _currentNote.value = updater(current)
         }
     }
 
-    // Guardado persistente mejorado
+    /**
+     * Guarda la nota actual en la base de datos (actualiza timestamp).
+     * Sincroniza los estados de la UI tras guardar.
+     */
     fun saveCurrentNote() {
         viewModelScope.launch {
             _currentNote.value?.let { current ->
                 val updatedNote = current.copy(timestamp = System.currentTimeMillis())
                 noteDao.update(updatedNote)
-                // Actualiza todos los estados relacionados
+                // Refresca listas tras guardar
                 loadAllNotes()
                 loadFavorites()
             }
         }
     }
 
+    // --- Métodos auxiliares para pantallas ---
+    fun getNoteById(noteId: Int): Flow<Note?> = noteDao.getNoteById(noteId)
+    fun setCurrentNote(note: Note) { _currentNote.value = note }
+    fun updateNoteTemp(note: Note) { _currentNote.value = note }
 
-    // Métodos para NoteDetailScreen
-    fun getNoteById(noteId: Int): Flow<Note?> {
-        return noteDao.getNoteById(noteId)
-    }
-
-    fun setCurrentNote(note: Note) {
-        _currentNote.value = note
-    }
-
-    fun updateNoteTemp(note: Note) {
-        _currentNote.value = note
-    }
-
-
-    // Operaciones CRUD
+    // --- Operaciones CRUD ---
+    /** Inserta una nueva nota y actualiza la lista. */
     fun insertNote(note: Note) {
         viewModelScope.launch {
             noteDao.insert(note.copy(
@@ -83,6 +92,7 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         }
     }
 
+    /** Actualiza una nota existente y refresca listas. */
     fun updateNote(note: Note) {
         viewModelScope.launch {
             noteDao.update(note.copy(timestamp = System.currentTimeMillis()))
@@ -91,6 +101,7 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         }
     }
 
+    /** Elimina una nota y actualiza listas. */
     fun deleteNote(note: Note) {
         viewModelScope.launch {
             noteDao.delete(note)
@@ -99,7 +110,8 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         }
     }
 
-    // Operaciones especiales
+    // --- Operaciones especiales ---
+    /** Cambia el estado de favorito de una nota. */
     fun toggleFavorite(noteId: Int) {
         viewModelScope.launch {
             noteDao.toggleFavorite(noteId)
@@ -108,6 +120,7 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         }
     }
 
+    /** Activa o desactiva el soporte Markdown en una nota. */
     fun toggleMarkdown(noteId: Int, enabled: Boolean) {
         viewModelScope.launch {
             noteDao.setMarkdownEnabled(noteId, enabled)
@@ -115,7 +128,8 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         }
     }
 
-    // Carga de datos
+    // --- Carga de datos reactiva ---
+    /** Carga todas las notas y las expone como estado observable. */
     fun loadAllNotes() {
         viewModelScope.launch {
             noteDao.getAllNotes().collect { notes ->
@@ -124,6 +138,7 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         }
     }
 
+    /** Carga las notas favoritas y las expone como estado observable. */
     fun loadFavorites() {
         viewModelScope.launch {
             noteDao.getFavoriteNotes().collect { favorites ->
@@ -132,7 +147,12 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         }
     }
 
-    // Búsqueda
+    // --- Búsqueda reactiva ---
+    /**
+     * Busca notas por texto en título o contenido.
+     * @param query Texto a buscar (usa LIKE en SQL).
+     * @return StateFlow con los resultados.
+     */
     fun searchNotes(query: String): StateFlow<List<Note>> {
         val results = MutableStateFlow<List<Note>>(emptyList())
         viewModelScope.launch {
@@ -141,12 +161,16 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         return results
     }
 
-    // Categorías
-    suspend fun getCategories(): List<String> {
-        return noteDao.getAllCategories()
-    }
+    // --- Categorías ---
+    /** Obtiene todas las categorías distintas usadas en notas. */
+    suspend fun getCategories(): List<String> = noteDao.getAllCategories()
 
-    // Notificaciones
+    // --- Notificaciones ---
+    /**
+     * Programa una notificación para una nota (actualiza notificationTime).
+     * @param noteId ID de la nota.
+     * @param timeInMinutes Minutos para la notificación.
+     */
     fun scheduleNotification(noteId: Int, timeInMinutes: Long) {
         viewModelScope.launch {
             noteDao.getNoteById(noteId).collect { note ->

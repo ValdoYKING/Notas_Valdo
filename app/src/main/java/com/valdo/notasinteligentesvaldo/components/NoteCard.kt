@@ -17,6 +17,15 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Componente visual que muestra una tarjeta/resumen de una nota.
+ *
+ * - Muestra el título, contenido (con o sin Markdown), y la fecha de edición.
+ * - Permite clic para navegar al detalle de la nota.
+ *
+ * @param note Nota a mostrar.
+ * @param onNoteClick Acción al hacer clic en la tarjeta.
+ */
 @Composable
 fun NoteCard(note: Note, onNoteClick: (Note) -> Unit) {
     val dateFormatter = remember {
