@@ -3,8 +3,12 @@ package com.valdo.notasinteligentesvaldo.screens
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -17,7 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -32,8 +38,17 @@ import dev.jeziellago.compose.markdowntext.MarkdownText
 import java.text.SimpleDateFormat
 import java.util.*
 import com.valdo.notasinteligentesvaldo.R
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.input.TextFieldValue
+import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun NoteFormScreen(
     onNoteSaved: (Note) -> Unit,
@@ -42,7 +57,18 @@ fun NoteFormScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
+    var textFieldValue by remember { mutableStateOf(TextFieldValue()) }
     var isMarkdownEnabled by remember { mutableStateOf(false) }
+    // Sincroniza el contenido cuando cambias de modo
+    LaunchedEffect(isMarkdownEnabled) {
+        if (!isMarkdownEnabled) {
+            // Al salir de markdown, actualiza el textFieldValue con el contenido
+            textFieldValue = TextFieldValue(content)
+        } else {
+            // Al entrar a markdown, actualiza el contenido con el texto plano
+            content = textFieldValue.text
+        }
+    }
     val focusRequester = remember { FocusRequester() }
     val currentDate = remember {
         SimpleDateFormat("EEEE, d 'de' MMMM", Locale.getDefault()).format(Date())
@@ -158,30 +184,63 @@ fun NoteFormScreen(
             if (isMarkdownEnabled) {
                 MarkdownEditor(content, onContentChange = { content = it })
             } else {
-                BasicTextField(
-                    value = content,
-                    onValueChange = { content = it },
+                val scrollState = rememberScrollState()
+                val bringIntoViewRequester = remember { BringIntoViewRequester() }
+                var cursorRect by remember { mutableStateOf<Rect?>(null) }
+                val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+                var bringIntoViewTrigger by remember { mutableStateOf(0) }
+                Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                        .focusRequester(focusRequester),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 18.sp,
-                        lineHeight = 28.sp,
-                        color = MaterialTheme.colorScheme.onSurface // Color legible en modo oscuro
-                    ),
-                    decorationBox = { innerTextField ->
-                        if (content.isEmpty()) {
-                            Text(
-                                "Comienza a escribir tu nota aquí...",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                )
-                            )
-                        }
-                        innerTextField()
+                        .weight(1f)
+                        .verticalScroll(scrollState)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewRequester(bringIntoViewRequester)
+                    ) {
+                        BasicTextField(
+                            value = textFieldValue,
+                            onValueChange = {
+                                textFieldValue = it
+                                content = it.text
+                                bringIntoViewTrigger++
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                fontSize = 18.sp,
+                                lineHeight = 28.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            singleLine = false,
+                            maxLines = Int.MAX_VALUE,
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+                            decorationBox = { innerTextField ->
+                                if (textFieldValue.text.isEmpty()) {
+                                    Text(
+                                        "Comienza a escribir tu nota aquí...",
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                        )
+                                    )
+                                }
+                                innerTextField()
+                            },
+                            onTextLayout = { textLayoutResult ->
+                                val cursorOffset = textFieldValue.selection.end
+                                cursorRect = textLayoutResult.getCursorRect(cursorOffset)
+                            }
+                        )
                     }
-                )
+                }
+                LaunchedEffect(bringIntoViewTrigger, imeBottom) {
+                    if (imeBottom > 0 && cursorRect != null) {
+                        delay(1)
+                        bringIntoViewRequester.bringIntoView(cursorRect!!)
+                    }
+                }
             }
         }
 
@@ -198,6 +257,7 @@ fun MarkdownEditor(
     onContentChange: (String) -> Unit
 ) {
     var preview by remember { mutableStateOf(false) }
+    val isDark = isSystemInDarkTheme()
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Barra de herramientas Markdown (corregida)
@@ -238,8 +298,10 @@ fun MarkdownEditor(
                     .padding(16.dp),
                 textStyle = TextStyle(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp
-                )
+                    fontSize = 16.sp,
+                    color = if (isDark) Color.White else Color.Unspecified
+                ),
+                cursorBrush = SolidColor(if (isDark) Color.White else Color.Black)
             )
         }
     }
@@ -247,11 +309,16 @@ fun MarkdownEditor(
 
 @Composable
 fun MarkdownPreview(content: String) {
-    // Usamos una librería como compose-markdown para renderizar
+    val isDark = isSystemInDarkTheme()
     MarkdownText(
         markdown = content,
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(16.dp),
+        style = TextStyle(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 16.sp,
+            color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
+        )
     )
 }

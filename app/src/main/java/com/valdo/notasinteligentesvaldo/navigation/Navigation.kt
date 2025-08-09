@@ -1,6 +1,6 @@
 package com.valdo.notasinteligentesvaldo.navigation
 
-import androidx.compose.animation.AnimatedContentTransitionScope // Importar para slideInto/slideOutOf
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -13,8 +13,8 @@ import com.valdo.notasinteligentesvaldo.screens.NoteFormScreen
 import com.valdo.notasinteligentesvaldo.screens.NotesScreen
 import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
 
-// Define duraciones de animación (opcional, para consistencia)
-private const val NAV_ANIM_DURATION = 400 // milisegundos
+// Define duraciones de animación
+private const val NAV_ANIM_DURATION = 300 // Reducido para menos parpadeo
 
 @Composable
 fun AppNavigation(
@@ -24,10 +24,7 @@ fun AppNavigation(
 
     NavHost(
         navController = navController,
-        startDestination = "notes", // Ruta inicial
-        // Aplicar transiciones por defecto si se desea (pueden ser anuladas por composable)
-        // enterTransition = { fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) },
-        // exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
+        startDestination = "notes?filter=all"
     ) {
 
         // --- Pantalla de Notas (Lista) ---
@@ -38,18 +35,11 @@ fun AppNavigation(
                 defaultValue = "all"
                 nullable = false
             }),
-            enterTransition = {
-                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
-            },
-            exitTransition = {
-                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
-            },
-            popEnterTransition = {
-                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
-            },
-            popExitTransition = {
-                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
-            }
+            // Eliminar todas las transiciones para evitar parpadeo
+            enterTransition = { null },
+            exitTransition = { null },
+            popEnterTransition = { null },
+            popExitTransition = { null }
         ) { backStackEntry ->
             val filterType = backStackEntry.arguments?.getString("filterType") ?: "all"
             NotesScreen(
@@ -68,18 +58,12 @@ fun AppNavigation(
             },
             exitTransition = {
                 fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
-            },
-            popEnterTransition = {
-                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
-            },
-            popExitTransition = {
-                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
             }
         ) {
             NoteFormScreen(
                 onNoteSaved = { newNote ->
                     viewModel.insertNote(newNote)
-                    navController.popBackStack() // Vuelve a la lista después de guardar
+                    navController.popBackStack()
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -88,18 +72,32 @@ fun AppNavigation(
         // --- Pantalla de Detalle de Nota ---
         composable(
             route = "noteDetail/{noteId}",
-            arguments = listOf(navArgument("noteId") { type = NavType.IntType }),
+            arguments = listOf(navArgument("noteId") {
+                type = NavType.IntType
+            }),
             enterTransition = {
-                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+                slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(NAV_ANIM_DURATION)
+                ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
             },
             exitTransition = {
-                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+                slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(NAV_ANIM_DURATION)
+                ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
             },
             popEnterTransition = {
-                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+                slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(NAV_ANIM_DURATION)
+                ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
             },
             popExitTransition = {
-                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+                slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(NAV_ANIM_DURATION)
+                ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
             }
         ) { backStackEntry ->
             val noteId = backStackEntry.arguments?.getInt("noteId")
@@ -113,7 +111,5 @@ fun AppNavigation(
                 navController.popBackStack()
             }
         }
-
-        // Añade otras rutas (categories, settings) con sus transiciones si es necesario
     }
 }

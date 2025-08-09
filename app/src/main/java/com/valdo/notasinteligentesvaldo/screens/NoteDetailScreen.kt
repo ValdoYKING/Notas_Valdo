@@ -43,6 +43,8 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.text.selection.SelectionContainer
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -242,11 +244,12 @@ fun NoteDetailScreen(
                         }
                     }
                     if (preview) {
+                        val isDark = isSystemInDarkTheme()
                         MarkdownText(
                             markdown = currentNote.content,
                             modifier = Modifier.fillMaxWidth(),
                             style = MaterialTheme.typography.bodyLarge.copy(
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
                             )
                         )
                     } else {
@@ -301,21 +304,31 @@ fun NoteDetailScreen(
                     }
 
                     if (currentNote.isMarkdownEnabled) {
+                        val isDark = isSystemInDarkTheme()
+                        // Mostrar aviso si es Markdown
+                        Text(
+                            text = "La selección solo está disponible en notas normales :(, seguimos mejorando",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
                         MarkdownText(
                             markdown = currentNote.content,
                             modifier = Modifier.fillMaxWidth(),
                             style = MaterialTheme.typography.bodyLarge.copy(
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
                             )
                         )
                     } else {
-                        Text(
-                            text = currentNote.content,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                lineHeight = 28.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                        SelectionContainer {
+                            Text(
+                                text = currentNote.content,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    lineHeight = 28.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                             )
-                        )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))

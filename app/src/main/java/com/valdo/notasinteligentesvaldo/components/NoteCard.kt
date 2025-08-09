@@ -1,12 +1,14 @@
 package com.valdo.notasinteligentesvaldo.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.valdo.notasinteligentesvaldo.models.Note
@@ -31,7 +33,9 @@ fun NoteCard(note: Note, onNoteClick: (Note) -> Unit) {
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(), // Eliminar .clickable aquí
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Mostrar título solo si existe
@@ -46,12 +50,13 @@ fun NoteCard(note: Note, onNoteClick: (Note) -> Unit) {
 
             // Contenido con soporte Markdown condicional
             if (note.isMarkdownEnabled) {
+                val isDark = isSystemInDarkTheme()
                 MarkdownText(
                     markdown = note.content.takeIf { it.length <= 120 }
                         ?: "${note.content.take(120)}...",
                     modifier = Modifier.fillMaxWidth(),
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             } else {
