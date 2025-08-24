@@ -5,6 +5,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -12,6 +14,13 @@ import com.valdo.notasinteligentesvaldo.screens.NoteDetailScreen
 import com.valdo.notasinteligentesvaldo.screens.NoteFormScreen
 import com.valdo.notasinteligentesvaldo.screens.NotesScreen
 import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import com.valdo.notasinteligentesvaldo.screens.ExternalViewerScreen
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import com.valdo.notasinteligentesvaldo.data.UiPrefs
+import kotlinx.coroutines.flow.first
 
 // Define duraciones de animación
 private const val NAV_ANIM_DURATION = 300 // Reducido para menos parpadeo
@@ -21,6 +30,52 @@ fun AppNavigation(
     viewModel: NoteViewModel,
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // Restaurar última ruta si existe (sustituye el inicio por defecto)
+    LaunchedEffect(Unit) {
+        val saved = UiPrefs.lastRouteFlow(context).first()
+        if (!saved.isNullOrBlank() && saved != "notes?filter=all") {
+            navController.navigate(saved) {
+                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
+
+    // Guardar la ruta actual cada vez que cambie el destino
+    LaunchedEffect(Unit) {
+        navController.currentBackStackEntryFlow.collectLatest { entry ->
+            val pattern = entry.destination.route ?: return@collectLatest
+            val route = when {
+                pattern.startsWith("noteDetail/") || pattern.startsWith("noteDetail") -> {
+                    val id = entry.arguments?.getInt("noteId") ?: return@collectLatest
+                    val cat = entry.arguments?.getInt("categoryId") ?: -1
+                    "noteDetail/$id?categoryId=$cat"
+                }
+                pattern.startsWith("notes") -> {
+                    val filter = entry.arguments?.getString("filterType") ?: "all"
+                    "notes?filter=$filter"
+                }
+                else -> pattern
+            }
+            scope.launch { UiPrefs.setLastRoute(context, route) }
+        }
+    }
+
+    // NUEVO: Navegar al detalle cuando se importe una nota externamente
+    LaunchedEffect(Unit) {
+        viewModel.importedNoteId.collectLatest { id ->
+            navController.navigate("noteDetail/$id?categoryId=-1")
+        }
+    }
+    // NUEVO: Navegar al visor efímero cuando llegue un documento externo
+    LaunchedEffect(Unit) {
+        viewModel.openExternalViewer.collectLatest {
+            navController.navigate("viewer")
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -46,7 +101,10 @@ fun AppNavigation(
                 viewModel = viewModel,
                 navController = navController,
                 filterType = filterType,
-                onAddNote = { navController.navigate("addNote") }
+                onAddNote = {
+                    viewModel.clearCurrentNote() // Limpia la nota actual antes de crear una nueva
+                    navController.navigate("addNote")
+                }
             )
         }
 
@@ -61,20 +119,32 @@ fun AppNavigation(
             }
         ) {
             NoteFormScreen(
-                onNoteSaved = { newNote ->
-                    viewModel.insertNote(newNote)
-                    navController.popBackStack()
+                onNoteSaved = { newNote, selectedCategories ->
+                    viewModel.viewModelScope.launch {
+                        val noteId = viewModel.insertNoteAndGetId(newNote).toInt()
+                        selectedCategories.forEach { catId ->
+                            viewModel.addCategoryToNote(noteId, catId)
+                        }
+                        viewModel.loadAllNotes()
+                        viewModel.loadAllCategories()
+                        navController.popBackStack()
+                    }
                 },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                viewModel = viewModel
             )
         }
 
         // --- Pantalla de Detalle de Nota ---
         composable(
-            route = "noteDetail/{noteId}",
-            arguments = listOf(navArgument("noteId") {
-                type = NavType.IntType
-            }),
+            route = "noteDetail/{noteId}?categoryId={categoryId}",
+            arguments = listOf(
+                navArgument("noteId") { type = NavType.IntType },
+                navArgument("categoryId") {
+                    type = NavType.IntType
+                    defaultValue = -1
+                }
+            ),
             enterTransition = {
                 slideIntoContainer(
                     AnimatedContentTransitionScope.SlideDirection.Left,
@@ -101,15 +171,33 @@ fun AppNavigation(
             }
         ) { backStackEntry ->
             val noteId = backStackEntry.arguments?.getInt("noteId")
+            val categoryId = backStackEntry.arguments?.getInt("categoryId") ?: -1
             if (noteId != null) {
                 NoteDetailScreen(
                     noteId = noteId,
                     viewModel = viewModel,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    navController = navController,
+                    categoryId = categoryId
                 )
             } else {
                 navController.popBackStack()
             }
+        }
+
+        // NUEVO: pantalla de visor externo (no persiste)
+        composable(
+            route = "viewer",
+            enterTransition = { fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) },
+            exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
+        ) {
+            ExternalViewerScreen(
+                viewModel = viewModel,
+                onBack = {
+                    viewModel.clearExternalDocument()
+                    navController.popBackStack()
+                }
+            )
         }
     }
 }

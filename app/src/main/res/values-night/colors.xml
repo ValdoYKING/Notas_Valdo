@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Variante oscura para que el splash combine con el tema del dispositivo -->
+    <color name="splash_background">#FF121212</color>
+</resources>
+

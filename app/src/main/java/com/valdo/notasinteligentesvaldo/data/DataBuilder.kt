@@ -29,7 +29,11 @@ object DatabaseBuilder {
                     NoteDatabase::class.java,
                     "note_database"
                 )
-                    .addMigrations(NoteDatabase.MIGRATION_1_2)  // Añade la migración
+                    .addMigrations(
+                        NoteDatabase.MIGRATION_1_2,
+                        NoteDatabase.MIGRATION_2_3,
+                        NoteDatabase.MIGRATION_3_4
+                    )  // Añade todas las migraciones
                     .fallbackToDestructiveMigration(false) // No destruye datos en migraciones
                     .build()
             }

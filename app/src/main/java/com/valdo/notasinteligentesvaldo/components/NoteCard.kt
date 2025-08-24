@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.valdo.notasinteligentesvaldo.models.Category
 import com.valdo.notasinteligentesvaldo.models.Note
 import dev.jeziellago.compose.markdowntext.MarkdownText
 import java.text.SimpleDateFormat
@@ -27,7 +28,11 @@ import java.util.Locale
  * @param onNoteClick Acción al hacer clic en la tarjeta.
  */
 @Composable
-fun NoteCard(note: Note, onNoteClick: (Note) -> Unit) {
+fun NoteCard(
+    note: Note,
+    categories: List<Category> = emptyList(),
+    onNoteClick: (Note) -> Unit
+) {
     val dateFormatter = remember {
         SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
     }
@@ -44,7 +49,7 @@ fun NoteCard(note: Note, onNoteClick: (Note) -> Unit) {
         Column(
             modifier = Modifier
                 .padding(16.dp)
-                .fillMaxWidth(), // Eliminar .clickable aquí
+                .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Mostrar título solo si existe

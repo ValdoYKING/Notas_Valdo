@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Notas Inteligentes Valdo"
 include(":app")
+include(":baselineprofile")
