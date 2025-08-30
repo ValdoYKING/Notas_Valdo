@@ -1,5 +1,6 @@
 [versions]
 animation = "1.9.0"
+benchmarkMacroJunit4 = "1.4.0"
 commonmark = "0.25.1"
 composeMarkdown = "0.2.6"
 navigationCompose = "2.9.3"
@@ -23,6 +24,7 @@ baselineprofilePlugin = "1.4.0"
 
 [libraries]
 androidx-animation = { module = "androidx.compose.animation:animation", version.ref = "animation" }
+androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmarkMacroJunit4" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }
 compose-markdown = { module = "com.github.jeziellago:compose-markdown", version.ref = "composeMarkdown" }

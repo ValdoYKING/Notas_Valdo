@@ -26,7 +26,7 @@ baselineProfile {
 }
 
 dependencies {
-    implementation("androidx.test.ext:junit:1.2.1")
-    implementation("androidx.test.espresso:espresso-core:3.6.1")
-    implementation("androidx.benchmark:benchmark-macro-junit4:1.3.3")
+    implementation(libs.androidx.junit)
+    implementation(libs.androidx.espresso.core)
+    implementation(libs.androidx.benchmark.macro.junit4)
 }
