@@ -119,15 +119,20 @@ fun AppNavigation(
             NoteFormScreen(
                 onNoteSaved = { newNote, selectedCategories ->
                     viewModel.viewModelScope.launch {
+                        // Insert note and get its ID
                         val noteId = viewModel.insertNoteAndGetId(newNote).toInt()
+                        
+                        // Add all categories to the note
                         selectedCategories.forEach { catId ->
                             viewModel.addCategoryToNote(noteId, catId)
                         }
-                        // Ensure data is reloaded before navigating back
-                        viewModel.loadAllNotes()
-                        viewModel.loadAllCategories()
-                        // Wait a frame to ensure state updates are processed
-                        kotlinx.coroutines.delay(50)
+                        
+                        // The database changes will automatically trigger Flow updates
+                        // in the ViewModel, but we add a small delay to ensure the UI
+                        // has time to process the state changes before navigation
+                        kotlinx.coroutines.delay(100)
+                        
+                        // Navigate back to the notes list
                         navController.popBackStack()
                     }
                 },
