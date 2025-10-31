@@ -111,12 +111,10 @@ fun AppNavigation(
         // --- Pantalla de Añadir/Editar Nota (Formulario) ---
         composable(
             route = "addNote",
-            enterTransition = {
-                fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
-            },
-            exitTransition = {
-                fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
-            }
+            enterTransition = { null },
+            exitTransition = { null },
+            popEnterTransition = { null },
+            popExitTransition = { null }
         ) {
             NoteFormScreen(
                 onNoteSaved = { newNote, selectedCategories ->
@@ -125,8 +123,11 @@ fun AppNavigation(
                         selectedCategories.forEach { catId ->
                             viewModel.addCategoryToNote(noteId, catId)
                         }
+                        // Ensure data is reloaded before navigating back
                         viewModel.loadAllNotes()
                         viewModel.loadAllCategories()
+                        // Wait a frame to ensure state updates are processed
+                        kotlinx.coroutines.delay(50)
                         navController.popBackStack()
                     }
                 },
