@@ -59,7 +59,7 @@ fun NotesScreen(
         val savedCat = UiPrefs.selectedCategoryIdFlow(context).first()
         if (savedCat != null) {
             selectedCategoryId = savedCat
-            viewModel.getNotesByCategoryId(savedCat)
+            // Eliminado: consultar por categoría; filtraremos localmente
         }
     }
 
@@ -231,7 +231,7 @@ fun NotesScreen(
                     AssistChip(
                         onClick = {
                             selectedCategoryId = null
-                            viewModel.loadAllNotes()
+                            // No hace falta recargar aquí; el estado ya se observa globalmente
                             scope.launch { UiPrefs.setSelectedCategoryId(context, null) }
                         },
                         label = { Text("Todas") },
@@ -245,7 +245,7 @@ fun NotesScreen(
                         AssistChip(
                             onClick = {
                                 selectedCategoryId = category.categoryId
-                                viewModel.getNotesByCategoryId(category.categoryId)
+                                // Eliminado: no llamamos a getNotesByCategoryId, filtramos localmente
                                 scope.launch { UiPrefs.setSelectedCategoryId(context, category.categoryId) }
                             },
                             label = { Text(category.name) },
@@ -282,12 +282,12 @@ fun NotesScreen(
                                 )
                             }
                         }
-                        notesToDisplay.isEmpty() -> {
-                            // Mensaje cuando no hay notas
-                            val emptyMessage = if (filterType == "favorites") {
-                                "Aún no tienes notas favoritas."
-                            } else {
-                                "¡Crea tu primera nota!"
+                        // Cambiado: usar filteredNotes para detectar vacío con filtro activo
+                        filteredNotes.isEmpty() -> {
+                            val emptyMessage = when {
+                                filterType == "favorites" -> "Aún no tienes notas favoritas."
+                                selectedCategoryId != null -> "No hay notas en esta categoría."
+                                else -> "¡Crea tu primera nota!"
                             }
                             EmptyNotesMessage(
                                 message = emptyMessage,
@@ -339,7 +339,7 @@ fun NotesScreen(
             onClose = { showCategoryManager = false },
             onSelectCategory = { catId: Int ->
                 selectedCategoryId = catId
-                viewModel.getNotesByCategoryId(catId)
+                // Eliminado: no disparar consulta por categoría aquí
                 showCategoryManager = false
             },
             onAddCategory = { name: String -> viewModel.insertCategory(Category(name = name)) },

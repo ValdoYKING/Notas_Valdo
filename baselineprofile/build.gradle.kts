@@ -1,6 +1,6 @@
 plugins {
     id("com.android.test")
-    id("androidx.baselineprofile") version "1.4.0"
+    id("androidx.baselineprofile") version "1.4.1"
     kotlin("android")
 }
 

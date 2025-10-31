@@ -75,6 +75,8 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         loadAllNotes()
         loadFavorites()
         loadAllCategories()
+        // Nuevo: observar siempre todas las notas con sus categorías
+        observeAllNotesWithCategories()
     }
 
     /**
@@ -341,6 +343,15 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
                     if (idx >= 0) actual.removeAt(idx)
                 }
                 _notesWithCategories.value = actual
+            }
+        }
+    }
+
+    // Observa todas las notas con sus categorías y sincroniza el estado global
+    private fun observeAllNotesWithCategories() {
+        viewModelScope.launch {
+            noteDao.getAllNotesWithCategories().collect { list ->
+                _notesWithCategories.value = list
             }
         }
     }

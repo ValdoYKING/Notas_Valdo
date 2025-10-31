@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
-    id("androidx.baselineprofile") version "1.4.0"
+    id("androidx.baselineprofile") version "1.4.1"
 }
 
 android {
@@ -53,6 +53,8 @@ android {
 }
 
 dependencies {
+    // Íconos de Material (filled/outlined/rounded/automirrored)
+    implementation(libs.androidx.material.icons.extended)
     implementation(libs.compose.markdown)
     implementation(libs.androidx.animation)
     //Add navigation

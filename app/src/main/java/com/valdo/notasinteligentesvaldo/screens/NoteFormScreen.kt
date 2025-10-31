@@ -11,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -44,6 +43,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
+// NUEVOS imports para insets del sistema
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -158,9 +162,13 @@ fun NoteFormScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                }
+                },
+                // NUEVO: asegurar que la app bar no invada la barra de estado
+                windowInsets = WindowInsets.statusBars
             )
-        }
+        },
+        // NUEVO: respetar los insets seguros del sistema
+        contentWindowInsets = WindowInsets.safeDrawing
     ) { padding ->
         Column(
             modifier = Modifier
