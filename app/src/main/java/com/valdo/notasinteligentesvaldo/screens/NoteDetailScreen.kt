@@ -61,6 +61,7 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.graphics.Typeface
+import androidx.compose.foundation.background
 import android.graphics.Color as AndroidColor
 import java.io.FileOutputStream
 import androidx.compose.ui.text.input.TextFieldValue
@@ -324,7 +325,7 @@ fun NoteDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .imePadding()
+                // .imePadding() — se mueve a los contenedores scrollables de edición para evitar espacio vacío
         ) {
             // Mostrar la fecha pequeña y suave en la parte superior del contenido
             Text(
@@ -354,7 +355,7 @@ fun NoteDetailScreen(
                         .focusRequester(titleFocusRequester),
                     textStyle = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = if (isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.onSurface
                     ),
                     cursorBrush = SolidColor(if (isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.onSurface),
                     decorationBox = { innerTextField ->
@@ -407,12 +408,14 @@ fun NoteDetailScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .verticalScroll(editScrollState)
+                                // .imePadding() eliminado para evitar espacio vacío con el teclado
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .bringIntoViewRequester(bringIntoViewRequester)
+                                    .background(MaterialTheme.colorScheme.surface)
                             ) {
                                 BasicTextField(
                                     value = contentValue,
@@ -423,13 +426,15 @@ fun NoteDetailScreen(
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .focusRequester(focusRequester),
+                                        .focusRequester(focusRequester)
+                                        .defaultMinSize(minHeight = 200.dp),
                                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                                         fontSize = 18.sp,
                                         lineHeight = 28.sp,
                                         color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
                                     ),
                                     singleLine = false,
+                                    minLines = 8,
                                     maxLines = Int.MAX_VALUE,
                                     cursorBrush = SolidColor(if (isDark) Color.White else MaterialTheme.colorScheme.onSurface),
                                     decorationBox = { inner ->
@@ -456,16 +461,19 @@ fun NoteDetailScreen(
                     }
                 } else {
                     // Texto plano
+                    val isDark = isSystemInDarkTheme()
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .verticalScroll(editScrollState)
+                            // .imePadding() eliminado para evitar espacio vacío con el teclado
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .bringIntoViewRequester(bringIntoViewRequester)
+                                .background(MaterialTheme.colorScheme.surface)
                         ) {
                             BasicTextField(
                                 value = contentValue,
@@ -476,15 +484,17 @@ fun NoteDetailScreen(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .focusRequester(focusRequester),
+                                    .focusRequester(focusRequester)
+                                    .defaultMinSize(minHeight = 200.dp),
                                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                                     fontSize = 18.sp,
                                     lineHeight = 28.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
                                 ),
                                 singleLine = false,
+                                minLines = 8,
                                 maxLines = Int.MAX_VALUE,
-                                cursorBrush = SolidColor(if (isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.onSurface),
+                                cursorBrush = SolidColor(if (isDark) Color.White else MaterialTheme.colorScheme.onSurface),
                                 decorationBox = { inner ->
                                     if (contentValue.text.isEmpty()) {
                                         Text(
