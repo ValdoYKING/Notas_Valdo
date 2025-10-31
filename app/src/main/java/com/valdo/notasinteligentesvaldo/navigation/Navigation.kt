@@ -16,6 +16,7 @@ import com.valdo.notasinteligentesvaldo.screens.NotesScreen
 import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import com.valdo.notasinteligentesvaldo.screens.ExternalViewerScreen
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
@@ -128,9 +129,13 @@ fun AppNavigation(
                         }
                         
                         // The database changes will automatically trigger Flow updates
-                        // in the ViewModel, but we add a small delay to ensure the UI
-                        // has time to process the state changes before navigation
-                        kotlinx.coroutines.delay(100)
+                        // in the ViewModel. We add a small delay to ensure the Compose UI
+                        // has time to recompose with the new state before navigation occurs.
+                        // This prevents the brief blank screen that can occur when navigating
+                        // before the UI receives the updated Flow emission.
+                        // Alternative approaches (observing Flow, state callbacks) would require
+                        // more significant architectural changes.
+                        delay(100)
                         
                         // Navigate back to the notes list
                         navController.popBackStack()
