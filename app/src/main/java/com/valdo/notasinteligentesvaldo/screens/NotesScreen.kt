@@ -40,9 +40,11 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.valdo.notasinteligentesvaldo.util.NoteActions
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -63,7 +65,14 @@ fun NotesScreen(
     var showCategoryManager by remember { mutableStateOf(false) }
     var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
 
+    // NUEVO: Estado para compartir
+    var shareTarget by remember { mutableStateOf<Note?>(null) }
+    val shareSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     val context = LocalContext.current
+
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Helper para navegar a detalle con launchSingleTop y evitar múltiples instancias
     fun navigateToNoteDetail(noteId: Int, categoryId: Int?) {
@@ -78,7 +87,6 @@ fun NotesScreen(
         val savedCat = UiPrefs.selectedCategoryIdFlow(context).first()
         if (savedCat != null) {
             selectedCategoryId = savedCat
-            // Eliminado: consultar por categoría; filtraremos localmente
         }
     }
 
@@ -93,7 +101,6 @@ fun NotesScreen(
     val notesByCategory = viewModel.notesWithCategories.collectAsState().value
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
 
     // Detectar cuando hay datos por primera vez y bajar el loader inicial
     LaunchedEffect(allNotesState, favoriteNotesState) {
@@ -175,6 +182,7 @@ fun NotesScreen(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             floatingActionButton = {
                 FloatingActionButton(
                     onClick = onAddNote, // CAMBIO: Llama a onAddNote para limpiar el estado antes de navegar
@@ -312,7 +320,14 @@ fun NotesScreen(
                                             navigateToNoteDetail(note.id, -1)
                                         }
                                     },
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    viewModel = viewModel,
+                                    snackbarHostState = snackbarHostState,
+                                    onShareFromCard = { note ->
+                                        // Mostrar hoja de compartir al hacer clic en compartir desde la tarjeta
+                                        shareTarget = note
+                                        scope.launch { shareSheetState.show() }
+                                    }
                                 )
 
                                 // Overlay de carga transparente durante refresh
@@ -349,32 +364,34 @@ fun NotesScreen(
             onDeleteCategory = { category: Category -> viewModel.deleteCategory(category) }
         )
     }
-}
 
-@Composable
-private fun EmptyNotesMessage(message: String, onAddNoteClick: () -> Unit, isFavorites: Boolean = false) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            val iconRes = if (isFavorites) R.drawable.sentiment_sad_24px else R.drawable.add_notes_24px
-            Icon(
-                painter = painterResource(id = iconRes),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clickable { if (!isFavorites) onAddNoteClick() },
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-            )
+    // Hoja de compartir para opciones de compartir (Texto, Archivo, PDF, Cancelar)
+    if (shareTarget != null) {
+        ModalBottomSheet(
+            onDismissRequest = { shareTarget = null },
+            sheetState = shareSheetState
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Compartir nota", style = MaterialTheme.typography.titleMedium)
+                val note = shareTarget!!
+                Button(onClick = {
+                    NoteActions.shareNoteContent(context, note.title, note.content)
+                    shareTarget = null
+                    scope.launch { snackbarHostState.showSnackbar("Compartida como texto") }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Texto plano") }
+                Button(onClick = {
+                    NoteActions.shareNoteFile(context, note.title, note.content, note.isMarkdownEnabled)
+                    shareTarget = null
+                    scope.launch { snackbarHostState.showSnackbar("Compartida como archivo") }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Archivo") }
+                Button(onClick = {
+                    NoteActions.shareNoteAsPdf(context, note.title, note.content)
+                    shareTarget = null
+                    scope.launch { snackbarHostState.showSnackbar("Compartida como PDF") }
+                }, modifier = Modifier.fillMaxWidth()) { Text("PDF") }
+                OutlinedButton(onClick = { shareTarget = null }, modifier = Modifier.fillMaxWidth()) { Text("Cancelar") }
+                Spacer(Modifier.height(8.dp))
+            }
         }
     }
 }
@@ -386,7 +403,10 @@ fun NotesGrid(
     onNoteClick: (Note) -> Unit,
     modifier: Modifier = Modifier,
     pageSize: Int = 20,
-    prefetchDistance: Int = 10
+    prefetchDistance: Int = 10,
+    viewModel: NoteViewModel,
+    snackbarHostState: SnackbarHostState,
+    onShareFromCard: (Note) -> Unit
 ) {
     val configuration = LocalConfiguration.current
     val columns = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 3 else 2
@@ -424,7 +444,52 @@ fun NotesGrid(
             key = { it.id },
             contentType = { _ -> "note" }
         ) { note ->
-            NoteCard(note = note, onNoteClick = onNoteClick)
+            NoteCard(
+                note = note,
+                onNoteClick = onNoteClick,
+                onDoubleTapFavorite = { n ->
+                    viewModel.toggleFavorite(n.id)
+                    // Mostrar snackbar de confirmación
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        snackbarHostState.showSnackbar("Nota marcada como favorita")
+                    }
+                },
+                onDeleteNote = { n -> viewModel.deleteNote(n) },
+                onShowMessage = { msg ->
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        snackbarHostState.showSnackbar(msg)
+                    }
+                },
+                onShareRequest = { n -> onShareFromCard(n) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyNotesMessage(message: String, onAddNoteClick: () -> Unit, isFavorites: Boolean = false) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val iconRes = if (isFavorites) R.drawable.sentiment_sad_24px else R.drawable.add_notes_24px
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clickable { if (!isFavorites) onAddNoteClick() },
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
         }
     }
 }
