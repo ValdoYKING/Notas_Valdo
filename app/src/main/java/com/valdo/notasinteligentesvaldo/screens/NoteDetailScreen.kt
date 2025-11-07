@@ -77,8 +77,10 @@ import androidx.compose.foundation.layout.statusBars
 // nuevo import para status bar padding y manejo de overflow de texto
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Suppress("UNUSED_PARAMETER")
 @Composable
 fun NoteDetailScreen(
@@ -341,6 +343,29 @@ fun NoteDetailScreen(
                 overflow = TextOverflow.Ellipsis
             )
 
+            // NUEVO: Mostrar todas las categorías con emojis, envolviendo en varias líneas si es necesario
+            val categories = noteWithCategoriesState?.categories ?: emptyList()
+            if (categories.isNotEmpty()) {
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    categories.forEach { cat ->
+                        AssistChip(
+                            onClick = { /* sin acción */ },
+                            label = { Text(cat.emoji + " " + cat.name) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                labelColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                    }
+                }
+            }
+
             if (isEditMode) {
                 // MODO EDICIÓN
                 BasicTextField(
@@ -570,25 +595,6 @@ fun NoteDetailScreen(
                         }
                     }
 
-                    // Visualización de categorías asociadas
-                    val categories = noteWithCategoriesState?.categories ?: emptyList()
-                    if (categories.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier.padding(bottom = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            categories.forEach { category ->
-                                AssistChip(
-                                    onClick = {},
-                                    label = { Text(category.name) },
-                                    colors = AssistChipDefaults.assistChipColors(
-                                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                                    )
-                                )
-                            }
-                        }
-                    }
-
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // Pie de nota con metadatos
@@ -732,7 +738,7 @@ fun EditCategoriesDialog(
                                     tempSelected - category.categoryId
                             }
                         )
-                        Text(category.name)
+                        Text("${category.emoji} ${category.name}")
                     }
                 }
             }

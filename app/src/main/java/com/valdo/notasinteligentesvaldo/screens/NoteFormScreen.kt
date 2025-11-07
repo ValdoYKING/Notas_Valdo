@@ -216,7 +216,7 @@ fun NoteFormScreen(
                 Text("Seleccionar categorías")
             }
 
-            // Mostrar hashtags de categorías seleccionadas
+            // Mostrar hashtags de categorías seleccionadas con emoji
             if (selectedCategories.isNotEmpty()) {
                 Row(
                     modifier = Modifier
@@ -227,12 +227,12 @@ fun NoteFormScreen(
                     allCategories.filter { selectedCategories.contains(it.categoryId) }.forEach { category ->
                         Surface(
                             shape = MaterialTheme.shapes.small,
-                            color = Color(0xFF6650a4), // Purple40
+                            color = Color(0xFF6650a4),
                             tonalElevation = 2.dp
                         ) {
                             Text(
-                                text = "#${category.name}",
-                                color = Color(0xFFD0BCFF), // Purple80
+                                text = "${category.emoji} #${category.name}",
+                                color = Color(0xFFD0BCFF),
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                             )
@@ -544,7 +544,7 @@ private fun CategorySelectionDialog(
                                         tempSelected + category.categoryId else tempSelected - category.categoryId
                                 }
                             )
-                            Text(category.name)
+                            Text("${category.emoji} ${category.name}")
                         }
                     }
                 }

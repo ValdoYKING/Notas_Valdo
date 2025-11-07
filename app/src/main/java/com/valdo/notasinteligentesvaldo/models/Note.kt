@@ -23,7 +23,8 @@ data class Note(
 @Entity(tableName = "categories")
 data class Category(
     @PrimaryKey(autoGenerate = true) val categoryId: Int = 0,
-    val name: String
+    val name: String,
+    val emoji: String = "📝" // Emoji representativo de la categoría (por defecto 📝)
 )
 
 @Entity(

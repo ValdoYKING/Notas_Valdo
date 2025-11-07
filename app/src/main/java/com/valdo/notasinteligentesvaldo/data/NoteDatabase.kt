@@ -10,7 +10,7 @@ import com.valdo.notasinteligentesvaldo.models.NoteCategoryCrossRef
 
 @Database(
     entities = [Note::class, Category::class, NoteCategoryCrossRef::class],
-    version = 4,  // Subimos a versión 4 para agregar índices en la tabla de cruce
+    version = 5,  // Subimos a versión 5 para agregar columna emoji en categories
     exportSchema = true
 )
 abstract class NoteDatabase : RoomDatabase() {
@@ -45,6 +45,12 @@ abstract class NoteDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_NoteCategoryCrossRef_noteId ON NoteCategoryCrossRef(noteId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_NoteCategoryCrossRef_categoryId ON NoteCategoryCrossRef(categoryId)")
+            }
+        }
+        // NUEVO: migración 4 -> 5 para agregar columna emoji en categories con default 📝
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE categories ADD COLUMN emoji TEXT NOT NULL DEFAULT '📝'")
             }
         }
     }

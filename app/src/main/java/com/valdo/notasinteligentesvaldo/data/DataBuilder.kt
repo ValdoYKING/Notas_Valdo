@@ -32,7 +32,8 @@ object DatabaseBuilder {
                     .addMigrations(
                         NoteDatabase.MIGRATION_1_2,
                         NoteDatabase.MIGRATION_2_3,
-                        NoteDatabase.MIGRATION_3_4
+                        NoteDatabase.MIGRATION_3_4,
+                        NoteDatabase.MIGRATION_4_5
                     )  // Añade todas las migraciones
                     .fallbackToDestructiveMigration(false) // No destruye datos en migraciones
                     .build()

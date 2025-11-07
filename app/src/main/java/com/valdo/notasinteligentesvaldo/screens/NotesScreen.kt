@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.valdo.notasinteligentesvaldo.components.NoteCard
@@ -30,10 +32,19 @@ import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.painterResource
 import com.valdo.notasinteligentesvaldo.R
-import com.valdo.notasinteligentesvaldo.models.NoteWithCategories
 import kotlinx.coroutines.flow.first
+import kotlin.math.min
+// Agrego FlowRow y anotación experimental
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun NotesScreen(
     viewModel: NoteViewModel,
@@ -53,6 +64,14 @@ fun NotesScreen(
     var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
 
     val context = LocalContext.current
+
+    // Helper para navegar a detalle con launchSingleTop y evitar múltiples instancias
+    fun navigateToNoteDetail(noteId: Int, categoryId: Int?) {
+        val cat = categoryId ?: -1
+        navController.navigate("noteDetail/$noteId?categoryId=$cat") {
+            launchSingleTop = true
+        }
+    }
 
     // Cargar preferencia de categoría seleccionada al iniciar
     LaunchedEffect(Unit) {
@@ -76,10 +95,6 @@ fun NotesScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Cargar datos al inicio y manejar estado de carga
-    // Eliminado: no relanzar colecciones ni usar delays artificiales; el ViewModel ya colecta en init
-    // La pantalla se considerará "cargando" hasta la primera emisión de cualquiera de las listas
-
     // Detectar cuando hay datos por primera vez y bajar el loader inicial
     LaunchedEffect(allNotesState, favoriteNotesState) {
         if (isLoading) isLoading = false
@@ -96,13 +111,6 @@ fun NotesScreen(
             if (selectedCategoryId != null) {
                 notesByCategory.filter { it.categories.any { c -> c.categoryId == selectedCategoryId } }.map { it.note }
             } else notesToDisplay
-        }
-    }
-
-    // Precalcular categorías por nota para evitar búsquedas repetidas O(n) en cada item
-    val categoriesByNoteId by remember(notesByCategory) {
-        derivedStateOf {
-            notesByCategory.associate { it.note.id to it.categories }
         }
     }
 
@@ -220,7 +228,7 @@ fun NotesScreen(
                 .padding(padding)
                 .fillMaxSize()
             ) {
-                // Filtro visual de categorías SIEMPRE ARRIBA
+                // Barra de categorías: siempre una sola fila desplazable (portrait y landscape)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -231,7 +239,6 @@ fun NotesScreen(
                     AssistChip(
                         onClick = {
                             selectedCategoryId = null
-                            // No hace falta recargar aquí; el estado ya se observa globalmente
                             scope.launch { UiPrefs.setSelectedCategoryId(context, null) }
                         },
                         label = { Text("Todas") },
@@ -245,11 +252,9 @@ fun NotesScreen(
                         AssistChip(
                             onClick = {
                                 selectedCategoryId = category.categoryId
-                                // Eliminado: no llamamos a getNotesByCategoryId, filtramos localmente
                                 scope.launch { UiPrefs.setSelectedCategoryId(context, category.categoryId) }
                             },
-                            label = { Text(category.name) },
-                            leadingIcon = { Icon(painterResource(id = R.drawable.category_24px), contentDescription = null) },
+                            label = { Text(category.emoji + " " + category.name) },
                             colors = AssistChipDefaults.assistChipColors(
                                 containerColor = if (selectedCategoryId == category.categoryId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                 labelColor = if (selectedCategoryId == category.categoryId) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
@@ -302,14 +307,12 @@ fun NotesScreen(
                                     notes = filteredNotes,
                                     onNoteClick = { note ->
                                         if (selectedCategoryId != null) {
-                                            navController.navigate("noteDetail/${note.id}?categoryId=${selectedCategoryId}")
+                                            navigateToNoteDetail(note.id, selectedCategoryId)
                                         } else {
-                                            navController.navigate("noteDetail/${note.id}?categoryId=-1")
+                                            navigateToNoteDetail(note.id, -1)
                                         }
                                     },
-                                    modifier = Modifier.fillMaxSize(),
-                                    notesWithCategories = notesByCategory,
-                                    categoriesByNoteId = categoriesByNoteId
+                                    modifier = Modifier.fillMaxSize()
                                 )
 
                                 // Overlay de carga transparente durante refresh
@@ -339,10 +342,9 @@ fun NotesScreen(
             onClose = { showCategoryManager = false },
             onSelectCategory = { catId: Int ->
                 selectedCategoryId = catId
-                // Eliminado: no disparar consulta por categoría aquí
                 showCategoryManager = false
             },
-            onAddCategory = { name: String -> viewModel.insertCategory(Category(name = name)) },
+            onAddCategory = { name: String, emoji: String -> viewModel.insertCategory(Category(name = name, emoji = emoji)) },
             onEditCategory = { category: Category -> viewModel.updateCategory(category) },
             onDeleteCategory = { category: Category -> viewModel.deleteCategory(category) }
         )
@@ -383,26 +385,46 @@ fun NotesGrid(
     notes: List<Note>,
     onNoteClick: (Note) -> Unit,
     modifier: Modifier = Modifier,
-    notesWithCategories: List<NoteWithCategories> = emptyList(),
-    categoriesByNoteId: Map<Int, List<Category>> = emptyMap()
+    pageSize: Int = 20,
+    prefetchDistance: Int = 10
 ) {
     val configuration = LocalConfiguration.current
     val columns = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 3 else 2
 
+    // Estado del grid y conteo de items a mostrar (paginación local)
+    val gridState = rememberLazyStaggeredGridState()
+    var itemsToShow by remember(notes) { mutableStateOf(min(pageSize, notes.size)) }
+
+    // Calcular si debemos cargar más cuando el usuario se acerca al final de lo ya mostrado
+    val shouldLoadMore by remember(notes, itemsToShow) {
+        derivedStateOf {
+            val visible = gridState.layoutInfo.visibleItemsInfo
+            if (visible.isEmpty()) return@derivedStateOf false
+            val lastVisible = visible.maxOf { it.index }
+            lastVisible >= itemsToShow - prefetchDistance && itemsToShow < notes.size
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) {
+            itemsToShow = min(itemsToShow + pageSize, notes.size)
+        }
+    }
+
     LazyVerticalStaggeredGrid(
         columns = StaggeredGridCells.Fixed(columns),
+        state = gridState,
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalItemSpacing = 8.dp
     ) {
         items(
-            items = notes,
+            items = notes.take(itemsToShow),
             key = { it.id },
             contentType = { _ -> "note" }
         ) { note ->
-            val categories = categoriesByNoteId[note.id] ?: emptyList()
-            NoteCard(note = note, categories = categories, onNoteClick = onNoteClick)
+            NoteCard(note = note, onNoteClick = onNoteClick)
         }
     }
 }
@@ -412,7 +434,7 @@ fun CategoryManagerDialog(
     categories: List<Category>,
     onClose: () -> Unit,
     onSelectCategory: (Int) -> Unit,
-    onAddCategory: (String) -> Unit,
+    onAddCategory: (String, String) -> Unit,
     onEditCategory: (Category) -> Unit,
     onDeleteCategory: (Category) -> Unit
 ) {
@@ -422,20 +444,30 @@ fun CategoryManagerDialog(
     var categoryToDelete by remember { mutableStateOf<Category?>(null) }
     var newCategoryName by remember { mutableStateOf("") }
     var editCategoryName by remember { mutableStateOf("") }
+    // Estados para emojis
+    var newCategoryEmoji by remember { mutableStateOf("📝") }
+    var editCategoryEmoji by remember { mutableStateOf("📝") }
 
     val scrollState = rememberScrollState()
+
+    // Lista de emojis sugeridos
+    val emojiChoices = listOf(
+        "📝","📚","💡","✅","📌","⭐","🔥","🏷️","🧠","🛒","🎯","🧹","💬","📅","🧪","📈","🛠️","🧭","✍️","🍽️","🏃","🛏️","🌱"
+    )
+
+    // Diálogo para agregar/editar emoji
+    var showEmojiPickerForAdd by remember { mutableStateOf(false) }
+    var showEmojiPickerForEdit by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text("Categorías") },
         text = {
-            // Limitar altura para que el campo de nueva categoría sea visible; lista desplazable arriba
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 120.dp, max = 420.dp)
             ) {
-                // Lista desplazable de categorías
                 Column(
                     modifier = Modifier
                         .weight(1f, fill = true)
@@ -447,13 +479,14 @@ fun CategoryManagerDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(category.name, modifier = Modifier.weight(1f))
+                            Text(category.emoji + " " + category.name, modifier = Modifier.weight(1f))
                             IconButton(onClick = { onSelectCategory(category.categoryId) }) {
                                 Icon(Icons.Default.Check, contentDescription = "Seleccionar")
                             }
                             IconButton(onClick = {
                                 categoryToEdit = category
                                 editCategoryName = category.name
+                                editCategoryEmoji = category.emoji
                                 showEditDialog = true
                             }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Editar")
@@ -468,18 +501,38 @@ fun CategoryManagerDialog(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                // Fila fija para agregar nueva categoría
+                // Fila fija para agregar nueva categoría con emoji
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = newCategoryName,
-                        onValueChange = { newCategoryName = it },
+                        onValueChange = { raw ->
+                            val noNewlines = raw.replace("\n", " ").replace("\r", " ")
+                            val collapsed = noNewlines.replace(Regex("\\s+"), " ")
+                            newCategoryName = collapsed.trim().take(200)
+                        },
                         label = { Text("Nueva categoría") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                val name = newCategoryName.replace(Regex("\\s+"), " ").trim()
+                                if (name.isNotEmpty()) {
+                                    onAddCategory(name.take(200), newCategoryEmoji)
+                                    newCategoryName = ""
+                                    newCategoryEmoji = "📝"
+                                }
+                            }
+                        ),
                         modifier = Modifier.weight(1f)
                     )
+                    Spacer(Modifier.width(8.dp))
+                    AssistChip(onClick = { showEmojiPickerForAdd = true }, label = { Text(newCategoryEmoji) })
                     IconButton(onClick = {
-                        if (newCategoryName.isNotBlank()) {
-                            onAddCategory(newCategoryName)
+                        val name = newCategoryName.replace(Regex("\\s+"), " ").trim()
+                        if (name.isNotEmpty()) {
+                            onAddCategory(name.take(200), newCategoryEmoji)
                             newCategoryName = ""
+                            newCategoryEmoji = "📝"
                         }
                     }) {
                         Icon(Icons.Default.Add, contentDescription = "Agregar")
@@ -492,23 +545,64 @@ fun CategoryManagerDialog(
         }
     )
 
-    // Diálogo de edición de categoría
+    // Picker de emoji para agregar
+    if (showEmojiPickerForAdd) {
+        AlertDialog(
+            onDismissRequest = { showEmojiPickerForAdd = false },
+            title = { Text("Elige un emoji") },
+            text = {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    emojiChoices.forEach { e ->
+                        Text(
+                            text = e,
+                            fontSize = 24.sp,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable {
+                                    newCategoryEmoji = e
+                                    showEmojiPickerForAdd = false
+                                },
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showEmojiPickerForAdd = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    // Diálogo de edición de categoría con emoji
     if (showEditDialog && categoryToEdit != null) {
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
             title = { Text("Editar categoría") },
             text = {
-                OutlinedTextField(
-                    value = editCategoryName,
-                    onValueChange = { editCategoryName = it },
-                    label = { Text("Nombre de la categoría") }
-                )
+                Column {
+                    OutlinedTextField(
+                        value = editCategoryName,
+                        onValueChange = { editCategoryName = it.replace("\n", " ").replace("\r", " ").replace(Regex("\\s+"), " ").trim().take(200) },
+                        label = { Text("Nombre de la categoría") },
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Emoji:")
+                        Spacer(Modifier.width(8.dp))
+                        AssistChip(onClick = { showEmojiPickerForEdit = true }, label = { Text(editCategoryEmoji) })
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
                     categoryToEdit?.let {
-                        if (editCategoryName.isNotBlank()) {
-                            onEditCategory(it.copy(name = editCategoryName))
+                        val clean = editCategoryName.replace(Regex("\\s+"), " ").trim()
+                        if (clean.isNotBlank()) {
+                            onEditCategory(it.copy(name = clean, emoji = editCategoryEmoji))
                             showEditDialog = false
                         }
                     }
@@ -520,7 +614,37 @@ fun CategoryManagerDialog(
         )
     }
 
-    // Diálogo de confirmación de eliminación
+    if (showEmojiPickerForEdit) {
+        AlertDialog(
+            onDismissRequest = { showEmojiPickerForEdit = false },
+            title = { Text("Elige un emoji") },
+            text = {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    emojiChoices.forEach { e ->
+                        Text(
+                            text = e,
+                            fontSize = 24.sp,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable {
+                                    editCategoryEmoji = e
+                                    showEmojiPickerForEdit = false
+                                },
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showEmojiPickerForEdit = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    // Diálogo de confirmación de eliminación (sin cambios)
     if (showDeleteDialog && categoryToDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
