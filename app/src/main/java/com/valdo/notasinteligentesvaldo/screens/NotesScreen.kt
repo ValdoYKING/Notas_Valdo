@@ -173,6 +173,8 @@ fun NotesScreen(
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
+                        // Navegar a pantalla de ajustes
+                        navController.navigate("settings")
                     },
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") }
                 )

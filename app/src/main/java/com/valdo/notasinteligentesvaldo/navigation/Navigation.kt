@@ -21,6 +21,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import com.valdo.notasinteligentesvaldo.data.UiPrefs
 import kotlinx.coroutines.flow.first
+import com.valdo.notasinteligentesvaldo.screens.SettingsScreen
+import com.valdo.notasinteligentesvaldo.screens.ProfileSettingsScreen
+import com.valdo.notasinteligentesvaldo.screens.ThemeSettingsScreen
+import com.valdo.notasinteligentesvaldo.screens.StartActionSettingsScreen
+import kotlinx.coroutines.flow.firstOrNull
 
 // Define duraciones de animación
 private const val NAV_ANIM_DURATION = 300 // Reducido para menos parpadeo
@@ -40,6 +45,15 @@ fun AppNavigation(
             navController.navigate(saved) {
                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                 launchSingleTop = true
+            }
+        } else {
+            // Si no hay ruta guardada distinta de la predeterminada, aplicar preferencia de inicio
+            val action = UiPrefs.startActionFlow(context).firstOrNull() ?: "notes"
+            if (action == "quick_note") {
+                viewModel.clearCurrentNote()
+                navController.navigate("addNote") {
+                    launchSingleTop = true
+                }
             }
         }
     }
@@ -198,6 +212,39 @@ fun AppNavigation(
                     navController.popBackStack()
                 }
             )
+        }
+
+        // NUEVO: Pantalla de Ajustes
+        composable(
+            route = "settings",
+            enterTransition = { fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) },
+            exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
+        ) {
+            SettingsScreen(navController = navController)
+        }
+        // NUEVO: Subpantalla perfil
+        composable(
+            route = "settings/profile",
+            enterTransition = { fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) },
+            exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
+        ) {
+            ProfileSettingsScreen(navController = navController)
+        }
+        // NUEVO: Subpantalla tema
+        composable(
+            route = "settings/theme",
+            enterTransition = { fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) },
+            exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
+        ) {
+            ThemeSettingsScreen(navController = navController)
+        }
+        // NUEVO: Subpantalla acción inicial
+        composable(
+            route = "settings/start_action",
+            enterTransition = { fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) },
+            exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
+        ) {
+            StartActionSettingsScreen(navController = navController)
         }
     }
 }

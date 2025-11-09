@@ -21,6 +21,11 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.valdo.notasinteligentesvaldo.data.UiPrefs
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.isSystemInDarkTheme
 
 /**
  * Actividad principal de la aplicación de notas inteligentes.
@@ -56,8 +61,21 @@ class MainActivity : ComponentActivity() {
         processIncomingIntent(intent)
 
         setContent {
-            // Aplica el tema personalizado de la app
-            NotasInteligentesValdoTheme {
+            // Leer preferencia de tema del usuario
+            val ctx = LocalContext.current
+            val themeMode by UiPrefs.themeModeFlow(ctx).collectAsState(initial = "system")
+
+            val isSystemDark = isSystemInDarkTheme()
+            val darkTheme = when (themeMode) {
+                "light" -> false
+                "dark" -> true
+                "dark_plus" -> true
+                else -> isSystemDark
+            }
+            val darkPlus = themeMode == "dark_plus"
+
+            // Aplica el tema personalizado de la app (respetando la preferencia)
+            NotasInteligentesValdoTheme(darkTheme = darkTheme, darkPlus = darkPlus) {
                 // Surface define el fondo principal de la app
                 Surface(color = MaterialTheme.colorScheme.background) {
                     // Inicia la navegación principal, pasando el ViewModel global
