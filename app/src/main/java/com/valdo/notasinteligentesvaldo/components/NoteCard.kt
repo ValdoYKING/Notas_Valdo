@@ -10,6 +10,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -33,13 +34,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.valdo.notasinteligentesvaldo.models.Note
 import com.valdo.notasinteligentesvaldo.util.NoteActions
-import dev.jeziellago.compose.markdowntext.MarkdownText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.isActive
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import com.valdo.notasinteligentesvaldo.ui.theme.LocalOledDarkMode
 
 /**
  * Tarjeta de nota optimizada para listas con soporte de Markdown (preview truncado).
@@ -60,8 +61,14 @@ fun NoteCard(
     val previewText = remember(note.content) {
         if (note.content.length <= 120) note.content else note.content.take(120) + "..."
     }
-    val markdownPreview = remember(note.content) {
-        if (note.content.length <= 200) note.content else note.content.take(200) + "..."
+    val markdownPlainPreview = remember(note.content) {
+        // Sustituir formato markdown por una vista plana para evitar uso de MarkdownText (crash coil)
+        note.content
+            .replace(Regex("`{1,3}.*?`"), "")
+            .replace(Regex("[*_~`>#-]"), "")
+            .replace(Regex("!\\[[^]]*]\\([^)]*\\)"), "") // imágenes
+            .replace(Regex("\\[[^]]+]\\([^)]*\\)"), "") // links
+            .take(200) + if (note.content.length > 200) "..." else ""
     }
     val editedAtText = remember(note.timestamp) {
         "Editado: ${dateFormatter.format(Date(note.timestamp))}"
@@ -126,10 +133,17 @@ fun NoteCard(
         }
     }
 
+    val oledMode = LocalOledDarkMode.current
+    val cardShape = MaterialTheme.shapes.medium
+
     Card(
+        shape = cardShape,
         modifier = Modifier
             .padding(8.dp)
             .fillMaxWidth()
+            .then(
+                if (oledMode) Modifier.border(1.25.dp, Color.White.copy(alpha = 0.2f), cardShape) else Modifier
+            )
             .pointerInput(note.id) {
                 detectTapGestures(
                     onDoubleTap = {
@@ -159,7 +173,7 @@ fun NoteCard(
                 )
             },
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (oledMode) Color.Black else MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         // Root Box SIN padding para que overlay cubra toda el área
@@ -187,13 +201,12 @@ fun NoteCard(
                 }
 
                 if (note.isMarkdownEnabled) {
-                    val isDark = isSystemInDarkTheme()
-                    MarkdownText(
-                        markdown = markdownPreview,
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    // Mostrar preview plano sin markdown para evitar crash
+                    Text(
+                        text = markdownPlainPreview,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis
                     )
                 } else {
                     Text(

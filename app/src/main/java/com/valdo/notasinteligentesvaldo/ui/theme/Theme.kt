@@ -9,6 +9,9 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowInsetsControllerCompat
@@ -25,16 +28,23 @@ private val LightColorScheme = lightColorScheme(
     tertiary = Pink40
 )
 
-// Esquema especial para "Oscuro+" (OLED) con surface negro puro
+// Esquema especial para "Oscuro+" (OLED) con surface negro puro y ahorro de energía en pantallas OLED.
 private val DarkPlusColorScheme = darkColorScheme(
     primary = Purple80,
+    onPrimary = Color.Black, // Mayor contraste en negro puro
     secondary = PurpleGrey80,
     tertiary = Pink80,
-    background = androidx.compose.ui.graphics.Color.Black,
-    surface = androidx.compose.ui.graphics.Color.Black,
-    onBackground = androidx.compose.ui.graphics.Color.White,
-    onSurface = androidx.compose.ui.graphics.Color.White
+    background = Color.Black, // Fondo totalmente negro para OLED
+    surface = Color.Black,    // Superficie negra para minimizar emisión de luz
+    surfaceVariant = Color.Black,
+    primaryContainer = Color.Black,
+    onBackground = Color.White,
+    onSurface = Color.White,
+    onSurfaceVariant = Color.White.copy(alpha = 0.85f)
 )
+// Nota para el usuario: El modo "Oscuro+ (OLED)" usa negro puro para reducir el consumo de batería en pantallas OLED.
+
+val LocalOledDarkMode = staticCompositionLocalOf { false }
 
 @Composable
 fun NotasInteligentesValdoTheme(
@@ -44,8 +54,9 @@ fun NotasInteligentesValdoTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
+    val useDynamic = dynamicColor && !darkPlus && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        useDynamic -> {
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme && darkPlus -> DarkPlusColorScheme
@@ -75,9 +86,11 @@ fun NotasInteligentesValdoTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(LocalOledDarkMode provides (darkTheme && darkPlus)) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }

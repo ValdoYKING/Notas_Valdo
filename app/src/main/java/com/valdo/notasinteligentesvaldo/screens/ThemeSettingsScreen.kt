@@ -38,6 +38,8 @@ fun ThemeSettingsScreen(navController: NavController) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Text("Selecciona el tema. El modo 'Oscuro+ (OLED)' usa negro puro para ahorrar batería en pantallas OLED.", style = MaterialTheme.typography.bodySmall)
+
             val options = listOf(
                 "system" to "Predeterminado del sistema",
                 "light" to "Claro",

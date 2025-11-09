@@ -11,6 +11,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +23,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.valdo.notasinteligentesvaldo.data.UiPrefs
+import coil.compose.AsyncImage
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,6 +83,18 @@ fun ProfileSettingsScreen(navController: NavController) {
         }
     }
 
+    val datePickerState = rememberDatePickerState()
+    var showDatePicker by remember { mutableStateOf(false) }
+    val formatter = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd") }
+
+    LaunchedEffect(datePickerState.selectedDateMillis) {
+        val millis = datePickerState.selectedDateMillis
+        if (millis != null) {
+            val localDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+            birthDateState = localDate.format(formatter)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -115,12 +133,24 @@ fun ProfileSettingsScreen(navController: NavController) {
                 modifier = Modifier
                     .size(96.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .clickable { imagePicker.launch(arrayOf("image/*")) },
                 contentAlignment = Alignment.Center
             ) {
-                val initials = ((firstNameState.firstOrNull()?.toString() ?: "") + (lastNameState.firstOrNull()?.toString() ?: "")).uppercase().ifBlank { "U" }
-                Text(initials, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                if (profileUri != null) {
+                    AsyncImage(
+                        model = profileUri,
+                        contentDescription = "Imagen de perfil",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    // Botón pequeño para eliminar imagen
+                    IconButton(onClick = { profileUri = null }, modifier = Modifier.align(Alignment.TopEnd)) {
+                        Icon(Icons.Default.Delete, contentDescription = "Eliminar imagen", tint = MaterialTheme.colorScheme.error)
+                    }
+                } else {
+                    val initials = ((firstNameState.firstOrNull()?.toString() ?: "") + (lastNameState.firstOrNull()?.toString() ?: "")).uppercase().ifBlank { "U" }
+                    Text(initials, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                }
             }
 
             OutlinedTextField(
@@ -154,11 +184,44 @@ fun ProfileSettingsScreen(navController: NavController) {
                 },
                 placeholder = { Text("YYYY-MM-DD") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                trailingIcon = {
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Icon(Icons.Filled.DateRange, contentDescription = "Elegir fecha")
+                    }
+                }
             )
+
+            if (showDatePicker) {
+                DatePickerModal(
+                    state = datePickerState,
+                    onDismiss = { showDatePicker = false },
+                    onConfirm = { showDatePicker = false }
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
             Text("Los cambios se guardarán automáticamente al regresar.", style = MaterialTheme.typography.bodySmall)
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DatePickerModal(
+    state: DatePickerState,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    ) {
+        DatePicker(state = state)
     }
 }

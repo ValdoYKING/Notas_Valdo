@@ -1,6 +1,5 @@
 package com.valdo.notasinteligentesvaldo.screens
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -12,13 +11,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.valdo.notasinteligentesvaldo.R
 import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
-import dev.jeziellago.compose.markdowntext.MarkdownText
+import com.halilibo.richtext.markdown.Markdown
+import com.halilibo.richtext.ui.material3.RichText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,14 +76,9 @@ fun ExternalViewerScreen(
                 .verticalScroll(scrollState)
         ) {
             if (doc!!.isMarkdown) {
-                val isDark = isSystemInDarkTheme()
-                MarkdownText(
-                    markdown = doc!!.content,
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
-                    )
-                )
+                RichText(modifier = Modifier.fillMaxWidth()) {
+                    Markdown(doc!!.content)
+                }
             } else {
                 SelectionContainer {
                     Text(
@@ -96,4 +90,3 @@ fun ExternalViewerScreen(
         }
     }
 }
-

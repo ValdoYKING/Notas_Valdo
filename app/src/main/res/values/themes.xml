@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.NotasInteligentesValdo" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.NotasInteligentesValdo" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Color por defecto para iconos/vector drawables que usan ?attr/colorControlNormal -->
+        <item name="colorControlNormal">@color/black</item>
+    </style>
 
     <!-- Compat: Tema de Splash para API < 31 (solo color de fondo) -->
     <style name="Theme.NotasInteligentesValdo.Splash" parent="android:Theme.Material.Light.NoActionBar">

@@ -19,37 +19,39 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.Center
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.valdo.notasinteligentesvaldo.models.Category
 import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
-import dev.jeziellago.compose.markdowntext.MarkdownText
+import com.halilibo.richtext.markdown.Markdown
+import com.halilibo.richtext.ui.material3.RichText
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.text.TextRange
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.navigation.NavController
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.launch
+import androidx.compose.foundation.background
 import com.valdo.notasinteligentesvaldo.R
+// Android framework for sharing/copy and PDF
 import android.widget.Toast
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -57,31 +59,19 @@ import android.content.ClipDescription
 import android.os.Build
 import android.os.PersistableBundle
 import android.graphics.pdf.PdfDocument
-import android.text.Layout
 import android.text.StaticLayout
+import android.text.Layout
 import android.text.TextPaint
 import android.graphics.Typeface
-import androidx.compose.foundation.background
-import android.graphics.Color as AndroidColor
 import java.io.FileOutputStream
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.TextLayoutResult
-import kotlin.math.min
-// NUEVOS imports para medir IME y respetar insets del sistema
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.statusBars
-// nuevo import para status bar padding y manejo de overflow de texto
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.navigation.NavController
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import kotlin.math.min
+import kotlinx.coroutines.launch
+import androidx.lifecycle.viewModelScope
+import android.graphics.Color as AndroidColor
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
-@Suppress("UNUSED_PARAMETER")
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NoteDetailScreen(
     noteId: Int,
@@ -100,18 +90,12 @@ fun NoteDetailScreen(
     // NUEVO: gestionar foco para evitar pegados accidentales tras copiar
     val focusManager = LocalFocusManager.current
     // NUEVO: utilidades para mantener el cursor visible sobre el teclado en modo edición
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-    var cursorRect by remember { mutableStateOf<Rect?>(null) }
-    var bringIntoViewTrigger by remember { mutableStateOf(0) }
     val editScrollState = rememberScrollState()
     // Reemplazo: mantener el layout de texto en un state explícito
-    val textLayoutResultState = remember { mutableStateOf<TextLayoutResult?>(null) }
     val currentDate = remember {
         SimpleDateFormat("EEEE, d 'de' MMMM", Locale.getDefault()).format(Date())
     }
     val context = LocalContext.current
-    // NUEVO: lectura del tamaño del IME para disparar bringIntoView sólo cuando esté visible
-    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
 
     // Formateador de fecha
     val dateFormatter = remember {
@@ -152,9 +136,7 @@ fun NoteDetailScreen(
     }
 
     // NUEVO: estado local del editor con control de selección/cursor
-    var contentValue by remember(noteId) {
-        mutableStateOf(TextFieldValue(currentNote.content))
-    }
+    var contentValue by remember(noteId) { mutableStateOf(TextFieldValue(currentNote.content)) }
     // Sincronizar cuando el contenido subyacente cambie externamente
     LaunchedEffect(currentNote.content) {
         if (currentNote.content != contentValue.text) {
@@ -168,7 +150,6 @@ fun NoteDetailScreen(
             contentValue = contentValue.copy(selection = TextRange(contentValue.text.length))
             // Asegurar que el cursor sea llevado a la vista (sobre el teclado)
             delay(1)
-            bringIntoViewTrigger++
         }
     }
 
@@ -177,9 +158,7 @@ fun NoteDetailScreen(
 
     // NUEVO: estado local para el título con selección
     val titleFocusRequester = remember { FocusRequester() }
-    var titleValue by remember(noteId) {
-        mutableStateOf(TextFieldValue(text = currentNote.title, selection = TextRange(currentNote.title.length)))
-    }
+    var titleValue by remember(noteId) { mutableStateOf(TextFieldValue(text = currentNote.title, selection = TextRange(currentNote.title.length))) }
     // Sincronizar título cuando cambie externamente
     LaunchedEffect(currentNote.title) {
         if (currentNote.title != titleValue.text) {
@@ -211,9 +190,8 @@ fun NoteDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    // Se deja el título vacío para evitar que la fecha quede comprimida por las acciones
-                    // La fecha se mostrará en el contenido para asegurar suficiente espacio horizontal
-                    Spacer(modifier = Modifier)
+                    // Título vacío para liberar espacio
+
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -419,27 +397,18 @@ fun NoteDetailScreen(
                         }
                     }
                     if (preview) {
-                        val isDark = isSystemInDarkTheme()
-                        MarkdownText(
-                            markdown = contentValue.text,
-                            modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
-                            )
-                        )
+                        RichText(modifier = Modifier.fillMaxWidth()) { Markdown(contentValue.text) }
                     } else {
                         val isDark = isSystemInDarkTheme()
                         Column(
                             modifier = Modifier
                                 .weight(1f)
                                 .verticalScroll(editScrollState)
-                                // .imePadding() eliminado para evitar espacio vacío con el teclado
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .bringIntoViewRequester(bringIntoViewRequester)
                                     .background(MaterialTheme.colorScheme.surface)
                             ) {
                                 BasicTextField(
@@ -447,7 +416,6 @@ fun NoteDetailScreen(
                                     onValueChange = { newValue ->
                                         contentValue = newValue
                                         viewModel.updateCurrentNote { it.copy(content = newValue.text) }
-                                        bringIntoViewTrigger++
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -474,11 +442,6 @@ fun NoteDetailScreen(
                                             )
                                         }
                                         inner()
-                                    },
-                                    onTextLayout = { layout ->
-                                        textLayoutResultState.value = layout
-                                        val selEnd = min(contentValue.selection.end, contentValue.text.length)
-                                        cursorRect = layout.getCursorRect(selEnd)
                                     }
                                 )
                             }
@@ -491,13 +454,11 @@ fun NoteDetailScreen(
                         modifier = Modifier
                             .weight(1f)
                             .verticalScroll(editScrollState)
-                            // .imePadding() eliminado para evitar espacio vacío con el teclado
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .bringIntoViewRequester(bringIntoViewRequester)
                                 .background(MaterialTheme.colorScheme.surface)
                         ) {
                             BasicTextField(
@@ -505,7 +466,6 @@ fun NoteDetailScreen(
                                 onValueChange = { newValue ->
                                     contentValue = newValue
                                     viewModel.updateCurrentNote { it.copy(content = newValue.text) }
-                                    bringIntoViewTrigger++
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -532,22 +492,9 @@ fun NoteDetailScreen(
                                         )
                                     }
                                     inner()
-                                },
-                                onTextLayout = { layout ->
-                                    textLayoutResultState.value = layout
-                                    val selEnd = min(contentValue.selection.end, contentValue.text.length)
-                                    cursorRect = layout.getCursorRect(selEnd)
                                 }
                             )
                         }
-                    }
-                }
-
-                // Seguir el cursor automáticamente (igual que NoteFormScreen)
-                LaunchedEffect(bringIntoViewTrigger, imeBottom) {
-                    if (imeBottom > 0 && cursorRect != null) {
-                        delay(1)
-                        bringIntoViewRequester.bringIntoView(cursorRect!!)
                     }
                 }
             } else {
@@ -569,20 +516,13 @@ fun NoteDetailScreen(
                     }
 
                     if (currentNote.isMarkdownEnabled) {
-                        val isDark = isSystemInDarkTheme()
                         Text(
                             text = "Vista en formato Markdown. La selección/copia directa no está soportada por Compose.",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        MarkdownText(
-                            markdown = currentNote.content,
-                            modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
-                            )
-                        )
+                        RichText(modifier = Modifier.fillMaxWidth()) { Markdown(currentNote.content) }
                     } else {
                         SelectionContainer {
                             Text(
@@ -677,15 +617,13 @@ fun NoteDetailScreen(
                     selectedCategories = noteWithCategoriesState?.categories?.map { it.categoryId }?.toSet() ?: emptySet(),
                     onDismiss = { showEditCategoriesDialog = false },
                     onSave = { selectedCatIds ->
-                        noteWithCategoriesState?.note?.id?.let { noteId ->
+                        noteWithCategoriesState?.note?.id?.let { nid: Int ->
                             viewModel.viewModelScope.launch {
-                                viewModel.removeAllCategoriesFromNote(noteId)
+                                viewModel.removeAllCategoriesFromNote(nid)
                                 delay(100)
-                                selectedCatIds.forEach { catId ->
-                                    viewModel.addCategoryToNote(noteId, catId)
-                                }
+                                selectedCatIds.forEach { catId -> viewModel.addCategoryToNote(nid, catId) }
                                 delay(100)
-                                viewModel.observeNoteWithCategories(noteId)
+                                viewModel.observeNoteWithCategories(nid)
                             }
                         }
                         showEditCategoriesDialog = false

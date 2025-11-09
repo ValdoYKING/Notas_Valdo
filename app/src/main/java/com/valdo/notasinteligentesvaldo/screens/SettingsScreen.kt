@@ -11,6 +11,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.valdo.notasinteligentesvaldo.data.UiPrefs
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
@@ -29,6 +30,7 @@ fun SettingsScreen(
     val lastName by UiPrefs.lastNameFlow(context).collectAsState(initial = "")
     val themeMode by UiPrefs.themeModeFlow(context).collectAsState(initial = "system")
     val startAction by UiPrefs.startActionFlow(context).collectAsState(initial = "notes")
+    val profileUri by UiPrefs.profileImageUriFlow(context).collectAsState(initial = "")
 
     val fullName = (firstName.trim() + " " + lastName.trim()).trim()
     val initials = ((firstName.firstOrNull()?.toString() ?: "") + (lastName.firstOrNull()?.toString() ?: "")).uppercase().ifBlank { "U" }
@@ -78,10 +80,18 @@ fun SettingsScreen(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(initials, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                        if (profileUri.isNotBlank()) {
+                            AsyncImage(
+                                model = profileUri,
+                                contentDescription = "Avatar",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Text(initials, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                        }
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {

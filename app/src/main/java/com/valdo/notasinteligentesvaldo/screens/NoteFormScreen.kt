@@ -25,7 +25,8 @@ import com.valdo.notasinteligentesvaldo.R
 import com.valdo.notasinteligentesvaldo.models.Note
 import com.valdo.notasinteligentesvaldo.models.Category
 import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
-import dev.jeziellago.compose.markdowntext.MarkdownText
+import com.halilibo.richtext.markdown.Markdown as RichMarkdown
+import com.halilibo.richtext.ui.material3.RichText
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.platform.LocalDensity
@@ -490,18 +491,11 @@ fun MarkdownEditor(
 
 @Composable
 fun MarkdownPreview(content: String) {
-    val isDark = isSystemInDarkTheme()
-    MarkdownText(
-        markdown = content,
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        style = TextStyle(
-            fontFamily = FontFamily.Monospace,
-            fontSize = 16.sp,
-            color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
-        )
-    )
+    RichText(modifier = Modifier
+        .fillMaxSize()
+        .padding(16.dp)) {
+        RichMarkdown(content)
+    }
 }
 
 @Composable

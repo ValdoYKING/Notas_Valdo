@@ -55,7 +55,6 @@ android {
 dependencies {
     // Íconos de Material (filled/outlined/rounded/automirrored)
     implementation(libs.androidx.material.icons.extended)
-    implementation(libs.compose.markdown)
     implementation(libs.androidx.animation)
     //Add navigation
     implementation(libs.androidx.navigation.compose)
@@ -86,4 +85,8 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     // Empaquetar Baseline Profile generado
     add("baselineProfile", project(":baselineprofile"))
+    implementation(libs.coil.compose)
+    implementation(libs.coil)
+    implementation(libs.richtext.ui.material3)
+    implementation(libs.richtext.commonmark)
 }

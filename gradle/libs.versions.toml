@@ -21,6 +21,8 @@ splashscreen = "1.0.1"
 datastore = "1.1.7"
 profileinstaller = "1.4.1"
 baselineprofilePlugin = "1.4.1"
+coil = "2.6.0"
+richtext = "0.20.0"
 
 [libraries]
 androidx-animation = { module = "androidx.compose.animation:animation", version.ref = "animation" }
@@ -51,6 +53,10 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+coil = { group = "io.coil-kt", name = "coil", version.ref = "coil" }
+richtext-ui-material3 = { group = "com.halilibo.compose-richtext", name = "richtext-ui-material3", version.ref = "richtext" }
+richtext-commonmark = { group = "com.halilibo.compose-richtext", name = "richtext-commonmark", version.ref = "richtext" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
