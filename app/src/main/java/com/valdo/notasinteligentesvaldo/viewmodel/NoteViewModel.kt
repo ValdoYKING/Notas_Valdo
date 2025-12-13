@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.firstOrNull
 
 // Documento externo temporal para visor (no se persiste)
 data class ExternalDocument(val title: String, val content: String, val isMarkdown: Boolean)
@@ -69,6 +70,17 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val openExternalViewer: SharedFlow<Unit> = _openExternalViewer
+
+    // Eventos para navegación desde notificaciones
+    private val _openNoteFromNotification = MutableSharedFlow<Int>(extraBufferCapacity = 1)
+    val openNoteFromNotification: SharedFlow<Int> = _openNoteFromNotification
+
+    private val _openNotesListFromNotification = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val openNotesListFromNotification: SharedFlow<Unit> = _openNotesListFromNotification
+
+    // Estado para recordar una nota a abrir desde notificación al arrancar navegación
+    private val _pendingNotificationNoteId = MutableStateFlow<Int?>(null)
+    val pendingNotificationNoteId: StateFlow<Int?> = _pendingNotificationNoteId.asStateFlow()
 
     // --- Inicialización: carga notas y favoritas al crear el ViewModel ---
     init {
@@ -253,19 +265,53 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
 
     // --- Notificaciones ---
     /**
-     * Programa una notificación para una nota (actualiza notificationTime).
-     * @param noteId ID de la nota.
-     * @param timeInMinutes Minutos para la notificación.
+     * Programa una notificación para una nota (manteniendo compatibilidad con el campo notificationTime).
+     * Aquí se interpreta timeInMinutes como minutos desde ahora.
      */
     fun scheduleNotification(noteId: Int, timeInMinutes: Long) {
         viewModelScope.launch {
             noteDao.getNoteById(noteId).collect { note ->
                 note?.let {
-                    noteDao.update(it.copy(
-                        notificationTime = timeInMinutes,
-                        timestamp = System.currentTimeMillis()
-                    ))
+                    noteDao.update(
+                        it.copy(
+                            notificationTime = timeInMinutes,
+                            timestamp = System.currentTimeMillis()
+                        )
+                    )
                 }
+            }
+        }
+    }
+
+    /** Programa un recordatorio rápido en X minutos, con opción de persistente. */
+    fun scheduleQuickReminder(noteId: Int, minutesFromNow: Long, isPersistent: Boolean) {
+        viewModelScope.launch {
+            // Tomar solo el valor actual de la nota una vez para evitar colecciones infinitas
+            val note = noteDao.getNoteById(noteId).firstOrNull()
+            note?.let {
+                noteDao.update(
+                    it.copy(
+                        notificationTime = minutesFromNow,
+                        isNotificationPersistent = isPersistent,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+    }
+
+    /** Limpia cualquier recordatorio asociado a la nota (incluyendo marca de persistente). */
+    fun clearReminder(noteId: Int) {
+        viewModelScope.launch {
+            val note = noteDao.getNoteById(noteId).firstOrNull()
+            note?.let {
+                noteDao.update(
+                    it.copy(
+                        notificationTime = null,
+                        isNotificationPersistent = false,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
             }
         }
     }
@@ -421,5 +467,18 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
         val longToken = Regex("^[A-Za-z0-9._-]{16,}$")
         if (longToken.matches(t)) return true
         return false
+    }
+
+    fun emitOpenNoteFromNotification(noteId: Int) {
+        _pendingNotificationNoteId.value = noteId
+        _openNoteFromNotification.tryEmit(noteId)
+    }
+
+    fun emitOpenNotesFromNotification() {
+        _openNotesListFromNotification.tryEmit(Unit)
+    }
+
+    fun clearPendingNotificationNoteId() {
+        _pendingNotificationNoteId.value = null
     }
 }

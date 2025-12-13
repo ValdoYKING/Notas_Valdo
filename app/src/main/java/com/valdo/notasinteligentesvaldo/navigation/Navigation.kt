@@ -38,22 +38,50 @@ fun AppNavigation(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Restaurar última ruta si existe (sustituye el inicio por defecto)
+    // NUEVO: conjunto de rutas seguras permitidas para restaurar
+    val allowedRestoreRoutes = setOf(
+        "notes?filter=all",
+        "notes?filter=favorites",
+        "addNote",
+        "settings",
+        "settings/profile",
+        "settings/theme",
+        "settings/start_action",
+        "viewer"
+    )
+
+    // Si hay una nota pendiente de abrir desde notificación, priorizarla al arrancar
     LaunchedEffect(Unit) {
+        val pendingId = viewModel.pendingNotificationNoteId.value
+        if (pendingId != null && pendingId > 0) {
+            android.util.Log.d("NAV_DEBUG", "Abriendo nota desde notificación pendiente: $pendingId")
+            navController.navigate("noteDetail/$pendingId?categoryId=-1") {
+                popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                launchSingleTop = true
+            }
+            viewModel.clearPendingNotificationNoteId()
+            return@LaunchedEffect
+        }
+
         val saved = UiPrefs.lastRouteFlow(context).first()
-        if (!saved.isNullOrBlank() && saved != "notes?filter=all") {
-            navController.navigate(saved) {
+        val safeSaved = if (!saved.isNullOrBlank() && saved in allowedRestoreRoutes) saved else null
+
+        if (!safeSaved.isNullOrBlank() && safeSaved != "notes?filter=all") {
+            android.util.Log.d("NAV_DEBUG", "Restaurando ruta guardada: $safeSaved")
+            navController.navigate(safeSaved) {
                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                 launchSingleTop = true
             }
         } else {
-            // Si no hay ruta guardada distinta de la predeterminada, aplicar preferencia de inicio
             val action = UiPrefs.startActionFlow(context).firstOrNull() ?: "notes"
             if (action == "quick_note") {
+                android.util.Log.d("NAV_DEBUG", "StartAction=quick_note -> navegando a addNote")
                 viewModel.clearCurrentNote()
                 navController.navigate("addNote") {
                     launchSingleTop = true
                 }
+            } else {
+                android.util.Log.d("NAV_DEBUG", "Sin ruta guardada válida, usando startDestination")
             }
         }
     }
@@ -74,6 +102,7 @@ fun AppNavigation(
                 }
                 else -> pattern
             }
+            android.util.Log.d("NAV_DEBUG", "Ruta actual: $route")
             scope.launch { UiPrefs.setLastRoute(context, route) }
         }
     }
@@ -88,6 +117,26 @@ fun AppNavigation(
     LaunchedEffect(Unit) {
         viewModel.openExternalViewer.collectLatest {
             navController.navigate("viewer")
+        }
+    }
+
+    // Navegar al detalle de nota cuando llega un evento desde notificación
+    LaunchedEffect(Unit) {
+        viewModel.openNoteFromNotification.collectLatest { id ->
+            navController.navigate("noteDetail/$id?categoryId=-1") {
+                popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                launchSingleTop = true
+            }
+        }
+    }
+
+    // Navegar a la lista desde notificación genérica
+    LaunchedEffect(Unit) {
+        viewModel.openNotesListFromNotification.collectLatest {
+            navController.navigate("notes?filter=all") {
+                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                launchSingleTop = true
+            }
         }
     }
 

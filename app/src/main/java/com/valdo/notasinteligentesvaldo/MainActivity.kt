@@ -1,7 +1,10 @@
 package com.valdo.notasinteligentesvaldo
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -43,21 +46,38 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // Instalar SplashScreen nativo (debe ir al inicio de onCreate)
         val splash = installSplashScreen()
-        // Animación de salida: desvanecer y reducir el icono
+        // Animación de salida: desvanecer y reducir el icono, protegiendo contra posibles NPE
         splash.setOnExitAnimationListener { provider ->
-            val iconView = provider.iconView
-            iconView.animate()
-                .alpha(0f)
-                .scaleX(0.8f)
-                .scaleY(0.8f)
-                .setDuration(250L)
-                .withEndAction { provider.remove() }
-                .start()
+            try {
+                val iconView = provider.iconView
+                if (iconView != null) {
+                    iconView.animate()
+                        .alpha(0f)
+                        .scaleX(0.8f)
+                        .scaleY(0.8f)
+                        .setDuration(250L)
+                        .withEndAction { provider.remove() }
+                        .start()
+                } else {
+                    provider.remove()
+                }
+            } catch (_: Throwable) {
+                // En caso de cualquier NPE interno, asegurarse de retirar el splash sin crashear
+                provider.remove()
+            }
         }
 
         super.onCreate(savedInstanceState)
 
-        // Procesar intent entrante (abrir .txt/.md o compartir texto)
+        // NUEVO: solicitar permiso de notificaciones en Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+            }
+        }
+
+        // Procesar intent entrante (notas externas o notificación)
+        handleNotificationDeepLink(intent)
         processIncomingIntent(intent)
 
         setContent {
@@ -90,8 +110,19 @@ class MainActivity : ComponentActivity() {
     // Cambiar a Intent no nulo para coincidir con la firma de Activity
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Procesar nuevos intents mientras la app está en foreground
+        handleNotificationDeepLink(intent)
         processIncomingIntent(intent)
+    }
+
+    private fun handleNotificationDeepLink(intent: Intent?) {
+        if (intent == null) return
+        val openList = intent.getBooleanExtra("openNotesList", false)
+        val noteId = intent.getIntExtra("noteId", -1)
+        if (openList) {
+            noteViewModel.emitOpenNotesFromNotification()
+        } else if (noteId > 0) {
+            noteViewModel.emitOpenNoteFromNotification(noteId)
+        }
     }
 
     private fun processIncomingIntent(intent: Intent?) {

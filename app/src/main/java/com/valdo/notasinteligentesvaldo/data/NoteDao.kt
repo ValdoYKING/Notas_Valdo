@@ -94,4 +94,7 @@ interface NoteDao {
     // Eliminar todas las relaciones de una nota (al eliminarla)
     @Query("DELETE FROM NoteCategoryCrossRef WHERE noteId = :noteId")
     suspend fun deleteAllNoteCategoryCrossRefsByNote(noteId: Int)
+
+    @Query("UPDATE notes SET notificationTime = NULL, isNotificationPersistent = 0 WHERE id = :noteId")
+    suspend fun clearReminderState(noteId: Int)
 }

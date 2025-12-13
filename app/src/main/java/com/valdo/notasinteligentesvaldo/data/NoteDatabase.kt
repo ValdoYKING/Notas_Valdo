@@ -10,7 +10,7 @@ import com.valdo.notasinteligentesvaldo.models.NoteCategoryCrossRef
 
 @Database(
     entities = [Note::class, Category::class, NoteCategoryCrossRef::class],
-    version = 5,  // Subimos a versión 5 para agregar columna emoji en categories
+    version = 6,  // Subimos a versión 6 para agregar columna isNotificationPersistent en notes
     exportSchema = true
 )
 abstract class NoteDatabase : RoomDatabase() {
@@ -51,6 +51,12 @@ abstract class NoteDatabase : RoomDatabase() {
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE categories ADD COLUMN emoji TEXT NOT NULL DEFAULT '📝'")
+            }
+        }
+        // NUEVO: migración 5 -> 6 para agregar columna isNotificationPersistent a notes
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE notes ADD COLUMN isNotificationPersistent INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

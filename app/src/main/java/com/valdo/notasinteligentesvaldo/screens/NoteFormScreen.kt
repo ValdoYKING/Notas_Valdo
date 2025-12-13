@@ -70,7 +70,18 @@ fun NoteFormScreen(
     var showCategorySelector by remember { mutableStateOf(false) }
     // Variables de error y edición
     var categoryError by remember { mutableStateOf("") }
-    val editingNote = viewModel.currentNote.collectAsState().value
+
+    // IMPORTANTE: siempre limpiar el formulario al entrar a esta pantalla
+    LaunchedEffect(Unit) {
+        title = ""
+        content = ""
+        textFieldValue = TextFieldValue("")
+        isMarkdownEnabled = false
+        selectedCategories = emptySet()
+        // Por seguridad, limpia también la nota actual del ViewModel
+        viewModel.clearCurrentNote()
+    }
+
     // Sincroniza el contenido cuando cambias de modo
     LaunchedEffect(isMarkdownEnabled) {
         if (!isMarkdownEnabled) {
@@ -117,15 +128,10 @@ fun NoteFormScreen(
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    // Botón de guardar (icono actualizado)
+                    // Botón de guardar: siempre crea una nota nueva, sin reutilizar editingNote
                     IconButton(
                         onClick = {
-                            val noteToSave = editingNote?.copy(
-                                id = 0, // Siempre id = 0 para nuevas notas
-                                title = title.ifEmpty { "Nota sin título" },
-                                content = content,
-                                isMarkdownEnabled = isMarkdownEnabled
-                            ) ?: Note(
+                            val noteToSave = Note(
                                 title = title.ifEmpty { "Nota sin título" },
                                 content = content,
                                 timestamp = System.currentTimeMillis(),
@@ -133,6 +139,13 @@ fun NoteFormScreen(
                                 isMarkdownEnabled = isMarkdownEnabled
                             )
                             onNoteSaved(noteToSave, selectedCategories)
+                            // Limpiar el estado del formulario y la nota actual en el ViewModel
+                            title = ""
+                            content = ""
+                            textFieldValue = TextFieldValue("")
+                            isMarkdownEnabled = false
+                            selectedCategories = emptySet()
+                            viewModel.clearCurrentNote()
                         },
                         enabled = content.isNotBlank() || title.isNotBlank()
                     ) {
@@ -376,27 +389,6 @@ fun NoteFormScreen(
         textFieldValue = TextFieldValue("")
         isMarkdownEnabled = false
         selectedCategories = emptySet()
-    }
-
-    LaunchedEffect(editingNote) {
-        if (editingNote == null) {
-            // Nueva nota: asegurar limpieza completa
-            title = ""
-            content = ""
-            textFieldValue = TextFieldValue("")
-            isMarkdownEnabled = false
-            selectedCategories = emptySet()
-        } else {
-            // Editar nota existente: cargar datos
-            title = editingNote.title
-            content = editingNote.content
-            textFieldValue = TextFieldValue(editingNote.content)
-            isMarkdownEnabled = editingNote.isMarkdownEnabled
-            // Cargar categorías asociadas
-            viewModel.getNoteWithCategories(editingNote.id)
-            val noteWithCats = viewModel.notesWithCategories.value.firstOrNull { n -> n.note.id == editingNote.id }
-            selectedCategories = noteWithCats?.categories?.map { c -> c.categoryId }?.toSet() ?: emptySet()
-        }
     }
 }
 

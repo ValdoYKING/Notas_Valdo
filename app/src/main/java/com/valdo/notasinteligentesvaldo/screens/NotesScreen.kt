@@ -1,6 +1,7 @@
 package com.valdo.notasinteligentesvaldo.screens
 
 import android.content.res.Configuration
+import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
@@ -234,9 +236,10 @@ fun NotesScreen(
                 )
             }
         ) { padding ->
-            Column(modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
             ) {
                 // Barra de categorías: siempre una sola fila desplazable (portrait y landscape)
                 Row(
@@ -279,6 +282,7 @@ fun NotesScreen(
                 ) {
                     when {
                         isLoading -> {
+                            Log.d("NOTES_DEBUG", "Mostrando loader en NotesScreen")
                             // Indicador de carga inicial
                             Column(
                                 modifier = Modifier.align(Alignment.Center),
@@ -304,6 +308,10 @@ fun NotesScreen(
                                 selectedCategoryId != null -> "No hay notas en esta categoría."
                                 else -> "¡Crea tu primera nota!"
                             }
+                            Log.d(
+                                "NOTES_DEBUG",
+                                "Mostrando EmptyNotesMessage; filterType=$filterType selectedCategoryId=$selectedCategoryId"
+                            )
                             EmptyNotesMessage(
                                 message = emptyMessage,
                                 onAddNoteClick = onAddNote,
@@ -311,39 +319,38 @@ fun NotesScreen(
                             )
                         }
                         else -> {
-                            // Lista de notas with overlay de carga si se está refrescando
-                            Box {
-                                NotesGrid(
-                                    notes = filteredNotes,
-                                    onNoteClick = { note ->
-                                        if (selectedCategoryId != null) {
-                                            navigateToNoteDetail(note.id, selectedCategoryId)
-                                        } else {
-                                            navigateToNoteDetail(note.id, -1)
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxSize(),
-                                    viewModel = viewModel,
-                                    snackbarHostState = snackbarHostState,
-                                    onShareFromCard = { note ->
-                                        // Mostrar hoja de compartir al hacer clic en compartir desde la tarjeta
-                                        shareTarget = note
-                                        scope.launch { shareSheetState.show() }
+                            Log.d(
+                                "NOTES_DEBUG",
+                                "Mostrando NotesGrid; count=${filteredNotes.size}"
+                            )
+                            NotesGrid(
+                                notes = filteredNotes,
+                                onNoteClick = { note ->
+                                    if (selectedCategoryId != null) {
+                                        navigateToNoteDetail(note.id, selectedCategoryId)
+                                    } else {
+                                        navigateToNoteDetail(note.id, -1)
                                     }
-                                )
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                                viewModel = viewModel,
+                                snackbarHostState = snackbarHostState,
+                                onShareFromCard = { note ->
+                                    shareTarget = note
+                                    scope.launch { shareSheetState.show() }
+                                }
+                            )
 
-                                // Overlay de carga transparente durante refresh
-                                if (isRefreshing) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
+                            if (isRefreshing) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
                                 }
                             }
                         }

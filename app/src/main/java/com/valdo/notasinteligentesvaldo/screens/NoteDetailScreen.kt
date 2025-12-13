@@ -70,6 +70,10 @@ import kotlin.math.min
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewModelScope
 import android.graphics.Color as AndroidColor
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import com.valdo.notasinteligentesvaldo.notification.NotificationHelper
+import com.valdo.notasinteligentesvaldo.notification.ReminderScheduler
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -78,20 +82,13 @@ fun NoteDetailScreen(
     onBack: () -> Unit,
     viewModel: NoteViewModel = viewModel(),
     navController: NavController,
-    categoryId: Int = -1 // <-- Nuevo parámetro
+    categoryId: Int = -1
 ) {
-    val note by viewModel.currentNote.collectAsState()
-    var isEditMode by remember { mutableStateOf(false) }
-    // NUEVO: bandera para evitar doble navegación al eliminar
-    var didNavigateBack by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     val scrollState = rememberScrollState()
-    // NUEVO: gestionar foco para evitar pegados accidentales tras copiar
     val focusManager = LocalFocusManager.current
-    // NUEVO: utilidades para mantener el cursor visible sobre el teclado en modo edición
     val editScrollState = rememberScrollState()
-    // Reemplazo: mantener el layout de texto en un state explícito
     val currentDate = remember {
         SimpleDateFormat("EEEE, d 'de' MMMM", Locale.getDefault()).format(Date())
     }
@@ -102,13 +99,20 @@ fun NoteDetailScreen(
         SimpleDateFormat("EEEE, d 'de' MMMM 'a las' HH:mm", Locale.getDefault())
     }
 
+    var isEditMode by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditCategoriesDialog by remember { mutableStateOf(false) }
+    var showReminderDialog by remember { mutableStateOf(false) }
+    var persistentOption by remember { mutableStateOf(false) }
+    var didNavigateBack by remember { mutableStateOf(false) }
+
+    // OBSERVAR SOLO ESTA NOTA POR ID, NO EL currentNote GLOBAL COMPARTIDO
+    val currentNote by viewModel.getNoteById(noteId).collectAsState(initial = null)
+    val noteWithCategoriesState by viewModel.currentNoteWithCategories.collectAsState()
+    val allCategories by viewModel.allCategories.collectAsState()
 
     // Carga inicial de la nota
     LaunchedEffect(noteId) {
-        viewModel.loadNote(noteId)
-        // Usar flujo dedicado para el detalle
         viewModel.observeNoteWithCategories(noteId)
     }
 
@@ -123,10 +127,6 @@ fun NoteDetailScreen(
     }
 
     // --- Protección contra nota nula ---
-    val currentNote = note
-    // Usar flujo dedicado de la nota con categorías para el detalle
-    val noteWithCategoriesState by viewModel.currentNoteWithCategories.collectAsState()
-
     // Si la nota aún no está cargada, mostrar loader (no navegar atrás aquí)
     if (currentNote == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Center) {
@@ -136,12 +136,12 @@ fun NoteDetailScreen(
     }
 
     // NUEVO: estado local del editor con control de selección/cursor
-    var contentValue by remember(noteId) { mutableStateOf(TextFieldValue(currentNote.content)) }
+    var contentValue by remember(noteId) { mutableStateOf(TextFieldValue(currentNote!!.content)) }
     // Sincronizar cuando el contenido subyacente cambie externamente
-    LaunchedEffect(currentNote.content) {
-        if (currentNote.content != contentValue.text) {
-            val newSel = min(contentValue.selection.end, currentNote.content.length)
-            contentValue = TextFieldValue(currentNote.content, TextRange(newSel))
+    LaunchedEffect(currentNote!!.content) {
+        if (currentNote!!.content != contentValue.text) {
+            val newSel = min(contentValue.selection.end, currentNote!!.content.length)
+            contentValue = TextFieldValue(currentNote!!.content, TextRange(newSel))
         }
     }
     // Al entrar en edición, forzar cursor al final o al inicio si vacío
@@ -154,16 +154,16 @@ fun NoteDetailScreen(
     }
 
     // NUEVO: Obtener las categorías de la nota
-    val allCategories by viewModel.allCategories.collectAsState()
+    val categories = noteWithCategoriesState?.categories ?: emptyList()
 
     // NUEVO: estado local para el título con selección
     val titleFocusRequester = remember { FocusRequester() }
-    var titleValue by remember(noteId) { mutableStateOf(TextFieldValue(text = currentNote.title, selection = TextRange(currentNote.title.length))) }
+    var titleValue by remember(noteId) { mutableStateOf(TextFieldValue(currentNote!!.title, TextRange(currentNote!!.title.length))) }
     // Sincronizar título cuando cambie externamente
-    LaunchedEffect(currentNote.title) {
-        if (currentNote.title != titleValue.text) {
-            val sel = min(titleValue.selection.end, currentNote.title.length)
-            titleValue = TextFieldValue(currentNote.title, TextRange(sel))
+    LaunchedEffect(currentNote!!.title) {
+        if (currentNote!!.title != titleValue.text) {
+            val sel = min(titleValue.selection.end, currentNote!!.title.length)
+            titleValue = TextFieldValue(currentNote!!.title, TextRange(sel))
         }
     }
 
@@ -186,6 +186,18 @@ fun NoteDetailScreen(
         }
     }
 
+    // Acción reutilizable para entrar/salir de edición desde icono o doble tap
+    val toggleEdit: () -> Unit = {
+        if (isEditMode) {
+            viewModel.saveCurrentNote()
+        }
+        isEditMode = !isEditMode
+    }
+
+    // Hay recordatorio activo si notificationTime != null
+    val hasActiveReminder = currentNote!!.notificationTime != null
+
+    // En la AppBar, desactivar el icono de campana si ya hay recordatorio activo
     Scaffold(
         topBar = {
             TopAppBar(
@@ -205,7 +217,7 @@ fun NoteDetailScreen(
                     IconButton(onClick = {
                         focusManager.clearFocus(force = true)
                         keyboardController?.hide()
-                        copyToClipboard(context, currentNote.content)
+                        copyToClipboard(context, currentNote!!.content)
                     }) {
                         Icon(
                             painter = painterResource(id = R.drawable.copy_24),
@@ -222,38 +234,38 @@ fun NoteDetailScreen(
                                 text = { Text("Texto (.txt)") },
                                 onClick = {
                                     anchorShare = false
-                                    shareNote(context, currentNote, asMarkdown = false)
+                                    shareNote(context, currentNote!!, asMarkdown = false)
                                 }
                             )
                             DropdownMenuItem(
                                 text = { Text("Markdown (.md)") },
                                 onClick = {
                                     anchorShare = false
-                                    shareNote(context, currentNote, asMarkdown = true)
+                                    shareNote(context, currentNote!!, asMarkdown = true)
                                 }
                             )
                             DropdownMenuItem(
                                 text = { Text("Contenido") },
                                 onClick = {
                                     anchorShare = false
-                                    shareNoteContent(context, currentNote.content)
+                                    shareNoteContent(context, currentNote!!.content)
                                 }
                             )
                             DropdownMenuItem(
                                 text = { Text("PDF (.pdf)") },
                                 onClick = {
                                     anchorShare = false
-                                    shareNoteAsPdf(context, currentNote.title, currentNote.content)
+                                    shareNoteAsPdf(context, currentNote!!.title, currentNote!!.content)
                                 }
                             )
                         }
                     }
 
-                    IconButton(onClick = { viewModel.toggleFavorite(currentNote.id) }) {
+                    IconButton(onClick = { viewModel.toggleFavorite(currentNote!!.id) }) {
                         Icon(
-                            imageVector = if (currentNote.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = if (currentNote.isFavorite) "Quitar de favoritas" else "Marcar como favorita",
-                            tint = if (currentNote.isFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current
+                            imageVector = if (currentNote!!.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (currentNote!!.isFavorite) "Quitar de favoritas" else "Marcar como favorita",
+                            tint = if (currentNote!!.isFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current
                         )
                     }
 
@@ -266,18 +278,13 @@ fun NoteDetailScreen(
                         IconButton(onClick = {
                             viewModel.updateCurrentNote { current -> current.copy(isMarkdownEnabled = !current.isMarkdownEnabled) }
                         }) {
-                            val markdownIcon = if (currentNote.isMarkdownEnabled) R.drawable.code_off_24px else R.drawable.code_24px
+                            val markdownIcon = if (currentNote!!.isMarkdownEnabled) R.drawable.code_off_24px else R.drawable.code_24px
                             Icon(painter = painterResource(id = markdownIcon), contentDescription = "Formato Markdown", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
 
                     // Editar/Guardar
-                    IconButton(onClick = {
-                        if (isEditMode) {
-                            viewModel.saveCurrentNote()
-                        }
-                        isEditMode = !isEditMode
-                    }) {
+                    IconButton(onClick = toggleEdit) {
                         Icon(
                             painter = painterResource(id = if (isEditMode) R.drawable.done_outline else R.drawable.edit_note),
                             contentDescription = if (isEditMode) "Guardar" else "Editar",
@@ -291,6 +298,41 @@ fun NoteDetailScreen(
                             painter = painterResource(id = R.drawable.format_list_bullete),
                             contentDescription = "Editar categorías"
                         )
+                    }
+
+                    // Icono de campana para recordatorios POR TIEMPO (1/5/10/15 min)
+                    IconButton(
+                        onClick = { showReminderDialog = true },
+                        enabled = !hasActiveReminder && !currentNote!!.isNotificationPersistent
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.notification_24),
+                            contentDescription = "Recordatorio",
+                            tint = if (hasActiveReminder || currentNote!!.isNotificationPersistent)
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            else
+                                MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // Icono para desactivar notificación persistente activa ("no seguir recordando")
+                    if (currentNote!!.isNotificationPersistent) {
+                        IconButton(onClick = {
+                            // Cancelar la notificación persistente y limpiar estado en BD
+                            NotificationHelper.cancelReminder(context, currentNote!!.id)
+                            viewModel.clearReminder(currentNote!!.id)
+                            Toast.makeText(
+                                context,
+                                "La notificación persistente se ha desactivado para esta nota",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.notification_audio_off_24),
+                                contentDescription = "No seguir recordando",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 },
                 // NUEVO: respetar la barra de estado
@@ -321,8 +363,25 @@ fun NoteDetailScreen(
                 overflow = TextOverflow.Ellipsis
             )
 
+            // Mensaje de estado de recordatorio
+            if (hasActiveReminder || currentNote!!.isNotificationPersistent) {
+                val reminderText = when {
+                    currentNote!!.isNotificationPersistent ->
+                        "Notificación persistente activa para esta nota. Toca el icono de pausa para dejar de recordarla."
+                    else -> "Recordatorio activo configurado para esta nota."
+                }
+                Text(
+                    text = reminderText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier
+                        .padding(start = 16.dp, top = 4.dp)
+                        .fillMaxWidth()
+                )
+            }
+
             // NUEVO: Mostrar todas las categorías con emojis, envolviendo en varias líneas si es necesario
-            val categories = noteWithCategoriesState?.categories ?: emptyList()
             if (categories.isNotEmpty()) {
                 FlowRow(
                     modifier = Modifier
@@ -380,7 +439,7 @@ fun NoteDetailScreen(
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                 // Editor de contenido (Markdown o texto normal)
-                if (currentNote.isMarkdownEnabled) {
+                if (currentNote!!.isMarkdownEnabled) {
                     var preview by remember { mutableStateOf(false) }
                     Row(
                         modifier = Modifier
@@ -504,10 +563,18 @@ fun NoteDetailScreen(
                         .fillMaxSize()
                         .padding(16.dp)
                         .verticalScroll(scrollState)
+                        // Doble tap en el área de lectura para entrar/salir de edición
+                        .pointerInput(currentNote!!.id) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    toggleEdit()
+                                }
+                            )
+                        }
                 ) {
-                    if (currentNote.title.isNotEmpty() && currentNote.title != "Nota sin título") {
+                    if (currentNote!!.title.isNotEmpty() && currentNote!!.title != "Nota sin título") {
                         Text(
-                            text = currentNote.title,
+                            text = currentNote!!.title,
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 color = MaterialTheme.colorScheme.primary
                             ),
@@ -515,18 +582,18 @@ fun NoteDetailScreen(
                         )
                     }
 
-                    if (currentNote.isMarkdownEnabled) {
+                    if (currentNote!!.isMarkdownEnabled) {
                         Text(
                             text = "Vista en formato Markdown. La selección/copia directa no está soportada por Compose.",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        RichText(modifier = Modifier.fillMaxWidth()) { Markdown(currentNote.content) }
+                        RichText(modifier = Modifier.fillMaxWidth()) { Markdown(currentNote!!.content) }
                     } else {
                         SelectionContainer {
                             Text(
-                                text = currentNote.content,
+                                text = currentNote!!.content,
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     lineHeight = 28.sp,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -543,18 +610,18 @@ fun NoteDetailScreen(
                         horizontalAlignment = Alignment.End
                     ) {
                         Text(
-                            text = "Creada: ${dateFormatter.format(Date(currentNote.timestampInit))}",
+                            text = "Creada: ${dateFormatter.format(Date(currentNote!!.timestampInit))}",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         )
                         Text(
-                            text = "Modificada: ${dateFormatter.format(Date(currentNote.timestamp))}",
+                            text = "Modificada: ${dateFormatter.format(Date(currentNote!!.timestamp))}",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         )
-                        if (currentNote.isMarkdownEnabled) {
+                        if (currentNote!!.isMarkdownEnabled) {
                             Text(
                                 text = "Formato: Markdown",
                                 style = MaterialTheme.typography.labelSmall.copy(
@@ -562,7 +629,7 @@ fun NoteDetailScreen(
                                 )
                             )
                         }
-                        if (currentNote.isFavorite) {
+                        if (currentNote!!.isFavorite) {
                             Text(
                                 text = "Favorita ⭐",
                                 style = MaterialTheme.typography.labelSmall.copy(
@@ -583,7 +650,7 @@ fun NoteDetailScreen(
                     confirmButton = {
                         TextButton(
                             onClick = {
-                                viewModel.deleteNote(currentNote)
+                                viewModel.deleteNote(currentNote!!)
                                 if (!didNavigateBack) {
                                     didNavigateBack = true
                                     val popped = navController.popBackStack()
@@ -627,6 +694,47 @@ fun NoteDetailScreen(
                             }
                         }
                         showEditCategoriesDialog = false
+                    }
+                )
+            }
+
+            // Diálogo de configuración de recordatorio (solo POR TIEMPO)
+            if (showReminderDialog) {
+                AlertDialog(
+                    onDismissRequest = { showReminderDialog = false },
+                    title = { Text("Recordatorio") },
+                    text = {
+                        Column {
+                            Text("Activar una notificación persistente para esta nota:")
+                            Spacer(modifier = Modifier.height(8.dp))
+                            AssistChip(
+                                onClick = {
+                                    // Marcar la nota como con notificación persistente activa
+                                    viewModel.scheduleQuickReminder(currentNote!!.id, 0, true)
+                                    // Mostrar la notificación persistente de inmediato (sin AlarmManager)
+                                    NotificationHelper.showReminder(context, currentNote!!, true)
+                                    showReminderDialog = false
+                                    Toast.makeText(
+                                        context,
+                                        "Notificación persistente activada para esta nota",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                label = { Text("Activar notificación persistente ahora") }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "La notificación persistente se mostrará de inmediato y permanecerá visible hasta que la desactives desde la nota.",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showReminderDialog = false }) {
+                            Text("Cerrar")
+                        }
                     }
                 )
             }
