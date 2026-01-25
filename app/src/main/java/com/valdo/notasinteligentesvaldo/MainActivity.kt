@@ -50,17 +50,13 @@ class MainActivity : ComponentActivity() {
         splash.setOnExitAnimationListener { provider ->
             try {
                 val iconView = provider.iconView
-                if (iconView != null) {
-                    iconView.animate()
-                        .alpha(0f)
-                        .scaleX(0.8f)
-                        .scaleY(0.8f)
-                        .setDuration(250L)
-                        .withEndAction { provider.remove() }
-                        .start()
-                } else {
-                    provider.remove()
-                }
+                iconView.animate()
+                    .alpha(0f)
+                    .scaleX(0.8f)
+                    .scaleY(0.8f)
+                    .setDuration(250L)
+                    .withEndAction { provider.remove() }
+                    .start()
             } catch (_: Throwable) {
                 // En caso de cualquier NPE interno, asegurarse de retirar el splash sin crashear
                 provider.remove()
