@@ -44,11 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
-// NUEVOS imports para insets del sistema
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.TextRange
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -58,40 +56,49 @@ fun NoteFormScreen(
     viewModel: NoteViewModel = viewModel()
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
-    var title by remember { mutableStateOf("") }
-    var content by remember { mutableStateOf("") }
-    var textFieldValue by remember { mutableStateOf(TextFieldValue()) }
-    var isMarkdownEnabled by remember { mutableStateOf(false) }
-    val allCategories by viewModel.allCategories.collectAsState()
-    var selectedCategories by remember { mutableStateOf(setOf<Int>()) }
-    var showAddCategoryDialog by remember { mutableStateOf(false) }
-    var newCategoryName by remember { mutableStateOf("") }
-    // NUEVO: diálogo de selección de categorías
-    var showCategorySelector by remember { mutableStateOf(false) }
-    // Variables de error y edición
-    var categoryError by remember { mutableStateOf("") }
 
-    // IMPORTANTE: siempre limpiar el formulario al entrar a esta pantalla
+    // Saver para persistir TextFieldValue (texto + selección) en rotación
+    val textFieldValueSaver: Saver<TextFieldValue, List<Any>> = remember {
+        Saver(
+            save = { listOf(it.text, it.selection.start, it.selection.end) },
+            restore = {
+                val text = it[0] as String
+                val start = it[1] as Int
+                val end = it[2] as Int
+                TextFieldValue(text = text, selection = TextRange(start, end))
+            }
+        )
+    }
+
+    var title by rememberSaveable { mutableStateOf("") }
+    var content by rememberSaveable { mutableStateOf("") }
+    var textFieldValue by rememberSaveable(stateSaver = textFieldValueSaver) { mutableStateOf(TextFieldValue("")) }
+    var isMarkdownEnabled by rememberSaveable { mutableStateOf(false) }
+
+    val allCategories by viewModel.allCategories.collectAsState()
+    var selectedCategories by rememberSaveable { mutableStateOf(setOf<Int>()) }
+    var showAddCategoryDialog by rememberSaveable { mutableStateOf(false) }
+    var newCategoryName by rememberSaveable { mutableStateOf("") }
+    var showCategorySelector by rememberSaveable { mutableStateOf(false) }
+    var categoryError by rememberSaveable { mutableStateOf("") }
+
+    // IMPORTANTE: limpiar SOLO la primera vez que se entra a esta pantalla.
+    // No debe ejecutarse en rotación (si no, borra el contenido).
     LaunchedEffect(Unit) {
-        title = ""
-        content = ""
-        textFieldValue = TextFieldValue("")
-        isMarkdownEnabled = false
-        selectedCategories = emptySet()
-        // Por seguridad, limpia también la nota actual del ViewModel
+        // Si ya hay algo escrito, respetarlo (caso: recomposición/volver atrás).
+        // Para nueva nota, normalmente estará vacío.
         viewModel.clearCurrentNote()
     }
 
     // Sincroniza el contenido cuando cambias de modo
     LaunchedEffect(isMarkdownEnabled) {
         if (!isMarkdownEnabled) {
-            // Al salir de markdown, actualiza el textFieldValue con el contenido
-            textFieldValue = TextFieldValue(content)
+            textFieldValue = TextFieldValue(content, selection = textFieldValue.selection)
         } else {
-            // Al entrar a markdown, actualiza el contenido con el texto plano
             content = textFieldValue.text
         }
     }
+
     val focusRequester = remember { FocusRequester() }
     val currentDate = remember {
         SimpleDateFormat("EEEE, d 'de' MMMM", Locale.getDefault()).format(Date())
@@ -113,8 +120,20 @@ fun NoteFormScreen(
                 actions = {
                     // Botón de agregar categoría
                     IconButton(onClick = { showAddCategoryDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Agregar categoría")
+                        Icon(
+                            painter = painterResource(id = R.drawable.bookmark_add_24),
+                            contentDescription = "Agregar categoría"
+                        )
                     }
+
+                    // Botón de seleccionar categorías (junto al de agregar)
+                    IconButton(onClick = { showCategorySelector = true }) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.bookmark_flag_24),
+                            contentDescription = "Seleccionar categorías"
+                        )
+                    }
+
                     // Botón de toggle Markdown
                     IconButton(
                         onClick = { isMarkdownEnabled = !isMarkdownEnabled },
@@ -128,7 +147,7 @@ fun NoteFormScreen(
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    // Botón de guardar: siempre crea una nota nueva, sin reutilizar editingNote
+                    // Botón de guardar
                     IconButton(
                         onClick = {
                             val noteToSave = Note(
@@ -139,7 +158,6 @@ fun NoteFormScreen(
                                 isMarkdownEnabled = isMarkdownEnabled
                             )
                             onNoteSaved(noteToSave, selectedCategories)
-                            // Limpiar el estado del formulario y la nota actual en el ViewModel
                             title = ""
                             content = ""
                             textFieldValue = TextFieldValue("")
@@ -221,16 +239,7 @@ fun NoteFormScreen(
                 }
             )
 
-            // Selector de categorías con botón y diálogo estable
-            Button(
-                onClick = { showCategorySelector = true },
-                modifier = Modifier
-                    .padding(start = 16.dp, top = 8.dp)
-            ) {
-                Text("Seleccionar categorías")
-            }
-
-            // Mostrar hashtags de categorías seleccionadas con emoji
+            // Mostrar hashtags de categorías seleccionadas with emoji
             if (selectedCategories.isNotEmpty()) {
                 Row(
                     modifier = Modifier
@@ -259,7 +268,12 @@ fun NoteFormScreen(
 
             // Área de contenido con soporte Markdown
             if (isMarkdownEnabled) {
-                MarkdownEditor(content, onContentChange = { content = it })
+                // Aplicar padding lateral para que el texto no quede pegado a la orilla
+                MarkdownEditor(
+                    content,
+                    onContentChange = { content = it },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
             } else {
                 val scrollState = rememberScrollState()
                 val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -270,6 +284,8 @@ fun NoteFormScreen(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(scrollState)
+                        // Margen lateral como en detalle/edición
+                        .padding(horizontal = 16.dp)
                 ) {
                     Box(
                         modifier = Modifier
@@ -381,21 +397,14 @@ fun NoteFormScreen(
         }
     }
 
-    // CORRECCIÓN DEFINITIVA: Limpiar campos inmediatamente al entrar y cuando editingNote cambie
-    LaunchedEffect(Unit) {
-        // Forzar limpieza inicial al entrar al formulario
-        title = ""
-        content = ""
-        textFieldValue = TextFieldValue("")
-        isMarkdownEnabled = false
-        selectedCategories = emptySet()
-    }
+    // ELIMINADO: segundo LaunchedEffect(Unit) que limpiaba campos y provocaba pérdida en rotación.
 }
 
 @Composable
 fun MarkdownEditor(
     content: String,
-    onContentChange: (String) -> Unit
+    onContentChange: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var preview by remember { mutableStateOf(false) }
     val isDark = isSystemInDarkTheme()
@@ -408,7 +417,7 @@ fun MarkdownEditor(
     val scrollState = rememberScrollState()
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .imePadding()
     ) {
@@ -439,14 +448,15 @@ fun MarkdownEditor(
 
         if (preview) {
             // Vista previa del Markdown
-            MarkdownPreview(content)
+            MarkdownPreview(content, modifier = Modifier.padding(horizontal = 16.dp))
         } else {
             // Editor de Markdown con desplazamiento y seguimiento del caret
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(16.dp)
+                    // Margen lateral consistente
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
             ) {
                 BasicTextField(
                     value = content,
@@ -482,10 +492,12 @@ fun MarkdownEditor(
 }
 
 @Composable
-fun MarkdownPreview(content: String) {
-    RichText(modifier = Modifier
-        .fillMaxSize()
-        .padding(16.dp)) {
+fun MarkdownPreview(content: String, modifier: Modifier = Modifier) {
+    RichText(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
         RichMarkdown(content)
     }
 }

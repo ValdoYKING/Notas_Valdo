@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
@@ -70,19 +71,26 @@ fun NotasInteligentesValdoTheme(
         val window = activity.window
         val insetsController = WindowInsetsControllerCompat(window, window.decorView)
 
-        // Configuración moderna de la barra de estado
-        insetsController.isAppearanceLightStatusBars = !darkTheme
+        SideEffect {
+            // Status bar icons
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            // Navigation bar icons (para que no dependa de un toggle posterior)
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
 
-        // Configuración moderna para todas las versiones de Android
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.let { controller ->
-                controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            // Colores transparentes cuando corresponde (edge-to-edge)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                @Suppress("DEPRECATION")
+                window.statusBarColor = android.graphics.Color.TRANSPARENT
+                @Suppress("DEPRECATION")
+                window.navigationBarColor = android.graphics.Color.TRANSPARENT
             }
-        } else {
-            @Suppress("DEPRECATION")
-            window.statusBarColor = android.graphics.Color.TRANSPARENT
-            @Suppress("DEPRECATION")
-            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+
+            // Configuración moderna para el comportamiento de system bars
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.insetsController?.let { controller ->
+                    controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            }
         }
     }
 

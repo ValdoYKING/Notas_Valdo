@@ -3,7 +3,6 @@ package com.valdo.notasinteligentesvaldo.screens
 import android.content.res.Configuration
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -14,13 +13,11 @@ import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridS
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
@@ -63,7 +60,6 @@ fun NotesScreen(
 
     // Estado de carga
     var isLoading by remember { mutableStateOf(true) }
-    var isRefreshing by remember { mutableStateOf(false) }
     var showCategoryManager by remember { mutableStateOf(false) }
     var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
 
@@ -107,11 +103,6 @@ fun NotesScreen(
     // Detectar cuando hay datos por primera vez y bajar el loader inicial
     LaunchedEffect(allNotesState, favoriteNotesState) {
         if (isLoading) isLoading = false
-        if (isRefreshing) {
-            // Pequeño delay opcional para feedback visual al usuario
-            kotlinx.coroutines.delay(150)
-            isRefreshing = false
-        }
     }
 
     // Filtrado por categoría (debe ir antes del Scaffold)
@@ -216,22 +207,7 @@ fun NotesScreen(
                         }
                     },
                     actions = {
-                        IconButton(
-                            onClick = {
-                                // Evitar relanzar colecciones en el ViewModel; solo mostrar feedback
-                                if (!isRefreshing) isRefreshing = true
-                            }
-                        ) {
-                            if (isRefreshing) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            } else {
-                                Icon(Icons.Default.Refresh, contentDescription = "Refrescar")
-                            }
-                        }
+                        // (Eliminado) Botón de refrescar
                     }
                 )
             }
@@ -246,7 +222,8 @@ fun NotesScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        // Un poco más arriba: menos padding vertical y menos top
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     AssistChip(
@@ -255,7 +232,18 @@ fun NotesScreen(
                             scope.launch { UiPrefs.setSelectedCategoryId(context, null) }
                         },
                         label = { Text("Todas") },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                        leadingIcon = {
+                            val iconTint = if (selectedCategoryId == null)
+                                MaterialTheme.colorScheme.onPrimary
+                            else
+                                MaterialTheme.colorScheme.onSurface
+
+                            Icon(
+                                painter = painterResource(id = R.drawable.bookmark_flag_24),
+                                contentDescription = null,
+                                tint = iconTint
+                            )
+                        },
                         colors = AssistChipDefaults.assistChipColors(
                             containerColor = if (selectedCategoryId == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                             labelColor = if (selectedCategoryId == null) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
@@ -340,19 +328,6 @@ fun NotesScreen(
                                     scope.launch { shareSheetState.show() }
                                 }
                             )
-
-                            if (isRefreshing) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
                         }
                     }
                 }

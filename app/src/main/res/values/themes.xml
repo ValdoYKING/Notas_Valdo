@@ -5,6 +5,14 @@
         <!-- Color por defecto para iconos/vector drawables que usan ?attr/colorControlNormal -->
         <item name="colorControlNormal">@color/black</item>
 
+        <!-- Fondo/colores de system bars (arranque) -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+
+        <!-- Íconos oscuros en barras (modo claro) -->
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+
         <!-- Fallback: algunos componentes (p.ej. splashscreen) leen este attr como dimensión -->
         <item name="splashScreenIconSize">96dp</item>
     </style>
@@ -13,6 +21,12 @@
     <style name="Theme.NotasInteligentesValdo.Splash" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:windowNoTitle">true</item>
+
+        <!-- Mantener consistencia en el primer frame (íconos oscuros) -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
 
         <!-- Fallback: requerido por el layout interno de androidx.core:splashscreen -->
         <item name="splashScreenIconSize">96dp</item>
