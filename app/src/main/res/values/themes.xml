@@ -4,11 +4,17 @@
     <style name="Theme.NotasInteligentesValdo" parent="android:Theme.Material.Light.NoActionBar">
         <!-- Color por defecto para iconos/vector drawables que usan ?attr/colorControlNormal -->
         <item name="colorControlNormal">@color/black</item>
+
+        <!-- Fallback: algunos componentes (p.ej. splashscreen) leen este attr como dimensión -->
+        <item name="splashScreenIconSize">96dp</item>
     </style>
 
     <!-- Compat: Tema de Splash para API < 31 (solo color de fondo) -->
     <style name="Theme.NotasInteligentesValdo.Splash" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:windowNoTitle">true</item>
+
+        <!-- Fallback: requerido por el layout interno de androidx.core:splashscreen -->
+        <item name="splashScreenIconSize">96dp</item>
     </style>
 </resources>

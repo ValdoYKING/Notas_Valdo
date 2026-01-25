@@ -188,8 +188,6 @@ fun AppNavigation(
                         selectedCategories.forEach { catId ->
                             viewModel.addCategoryToNote(noteId, catId)
                         }
-                        viewModel.loadAllNotes()
-                        viewModel.loadAllCategories()
                         navController.popBackStack()
                     }
                 },

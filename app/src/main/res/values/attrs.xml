@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Definición del atributo usado en los vectores para el tint -->
     <attr name="colorControlNormal" format="color" />
-</resources>
 
+    <!-- Fallback para androidx.core:splashscreen (evita crash si el tema no hereda el attr) -->
+    <attr
+        name="splashScreenIconSize"
+        format="dimension"
+        tools:override="true" />
+</resources>

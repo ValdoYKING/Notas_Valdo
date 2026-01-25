@@ -84,7 +84,16 @@ interface NoteDao {
 
     @Transaction
     @RewriteQueriesToDropUnusedColumns
-    @Query("SELECT notes.* FROM notes INNER JOIN NoteCategoryCrossRef ON notes.id = NoteCategoryCrossRef.noteId WHERE NoteCategoryCrossRef.categoryId = :categoryId ORDER BY notes.timestamp DESC")
+    @Query(
+        """
+        SELECT notes.*
+        FROM notes
+        INNER JOIN NoteCategoryCrossRef
+            ON notes.id = NoteCategoryCrossRef.noteId
+        WHERE NoteCategoryCrossRef.categoryId = :categoryId
+        ORDER BY notes.timestamp DESC
+        """
+    )
     fun getNotesByCategoryId(categoryId: Int): Flow<List<NoteWithCategories>>
 
     // Eliminar todas las relaciones de una categoría (al eliminarla)

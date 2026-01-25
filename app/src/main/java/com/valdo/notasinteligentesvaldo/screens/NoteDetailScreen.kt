@@ -73,7 +73,18 @@ import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import com.valdo.notasinteligentesvaldo.notification.NotificationHelper
-import com.valdo.notasinteligentesvaldo.notification.ReminderScheduler
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.ui.layout.positionInRoot
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -82,13 +93,14 @@ fun NoteDetailScreen(
     onBack: () -> Unit,
     viewModel: NoteViewModel = viewModel(),
     navController: NavController,
-    categoryId: Int = -1
+    @Suppress("UNUSED_PARAMETER") categoryId: Int = -1 // mantenido por compatibilidad de navegación
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
-    val editScrollState = rememberScrollState()
+    // El modo edición usa LazyColumn (un único scroll).
+
     val currentDate = remember {
         SimpleDateFormat("EEEE, d 'de' MMMM", Locale.getDefault()).format(Date())
     }
@@ -99,12 +111,12 @@ fun NoteDetailScreen(
         SimpleDateFormat("EEEE, d 'de' MMMM 'a las' HH:mm", Locale.getDefault())
     }
 
-    var isEditMode by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showEditCategoriesDialog by remember { mutableStateOf(false) }
-    var showReminderDialog by remember { mutableStateOf(false) }
-    var persistentOption by remember { mutableStateOf(false) }
-    var didNavigateBack by remember { mutableStateOf(false) }
+    // IMPORTANTE: estos estados deben sobrevivir rotación
+    var isEditMode by rememberSaveable(noteId) { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable(noteId) { mutableStateOf(false) }
+    var showEditCategoriesDialog by rememberSaveable(noteId) { mutableStateOf(false) }
+    var showReminderDialog by rememberSaveable(noteId) { mutableStateOf(false) }
+    var didNavigateBack by rememberSaveable(noteId) { mutableStateOf(false) }
 
     // OBSERVAR SOLO ESTA NOTA POR ID, NO EL currentNote GLOBAL COMPARTIDO
     val currentNote by viewModel.getNoteById(noteId).collectAsState(initial = null)
@@ -135,11 +147,58 @@ fun NoteDetailScreen(
         return
     }
 
-    // NUEVO: estado local del editor con control de selección/cursor
-    var contentValue by remember(noteId) { mutableStateOf(TextFieldValue(currentNote!!.content)) }
-    // Sincronizar cuando el contenido subyacente cambie externamente
-    LaunchedEffect(currentNote!!.content) {
-        if (currentNote!!.content != contentValue.text) {
+    // Saver para persistir TextFieldValue (texto + selección) en rotación
+    val textFieldValueSaver: Saver<TextFieldValue, List<Any>> = remember {
+        Saver(
+            save = { listOf(it.text, it.selection.start, it.selection.end) },
+            restore = {
+                val text = it[0] as String
+                val start = it[1] as Int
+                val end = it[2] as Int
+                TextFieldValue(text = text, selection = TextRange(start, end))
+            }
+        )
+    }
+
+    // NUEVO: estado local del editor con control de selección/cursor (persistente en rotación)
+    var contentValue by rememberSaveable(noteId, stateSaver = textFieldValueSaver) {
+        mutableStateOf(TextFieldValue(currentNote!!.content))
+    }
+
+    // Seguimiento del cursor (estilo Obsidian): medimos el rect del cursor en coordenadas de raíz
+    // y hacemos scroll del contenedor para mantenerlo visible/cerca del centro.
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    var viewportHeightPx by remember { mutableStateOf(0) }
+    var contentBoxTopInRootPx by remember { mutableStateOf(0f) }
+    var cursorRectInRoot by remember { mutableStateOf<Rect?>(null) }
+
+    // Función para ajustar el scroll y centrar el cursor (aprox. al 45% del viewport)
+    fun requestCenterCursor(listState: androidx.compose.foundation.lazy.LazyListState) {
+        val rect = cursorRectInRoot ?: return
+        if (viewportHeightPx <= 0) return
+
+        val viewportTop = contentBoxTopInRootPx
+        val cursorCenterY = (rect.top + rect.bottom) / 2f
+
+        val targetY = viewportTop + viewportHeightPx * 0.45f
+        val delta = cursorCenterY - targetY
+
+        val thresholdPx = with(density) { 24.dp.toPx() }
+        if (kotlin.math.abs(delta) < thresholdPx) return
+
+        scope.launch {
+            // Fallback compatible: llevamos el editor (item del contenido) a una posición visible.
+            // Esto evita depender de APIs scrollBy/animateScrollBy que varían por versión.
+            // Nota: nuestro LazyColumn en edición tiene: [0] titulo, [1] (opcional) markdown toolbar/preview, [último] editor.
+            val lastIndex = (listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+            listState.animateScrollToItem(lastIndex)
+        }
+    }
+
+    // Sincronizar cuando el contenido subyacente cambie externamente (solo si NO estamos editando)
+    LaunchedEffect(currentNote!!.content, isEditMode) {
+        if (!isEditMode && currentNote!!.content != contentValue.text) {
             val newSel = min(contentValue.selection.end, currentNote!!.content.length)
             contentValue = TextFieldValue(currentNote!!.content, TextRange(newSel))
         }
@@ -156,12 +215,15 @@ fun NoteDetailScreen(
     // NUEVO: Obtener las categorías de la nota
     val categories = noteWithCategoriesState?.categories ?: emptyList()
 
-    // NUEVO: estado local para el título con selección
+    // NUEVO: estado local para el título con selección (persistente en rotación)
     val titleFocusRequester = remember { FocusRequester() }
-    var titleValue by remember(noteId) { mutableStateOf(TextFieldValue(currentNote!!.title, TextRange(currentNote!!.title.length))) }
-    // Sincronizar título cuando cambie externamente
-    LaunchedEffect(currentNote!!.title) {
-        if (currentNote!!.title != titleValue.text) {
+    var titleValue by rememberSaveable(noteId, stateSaver = textFieldValueSaver) {
+        mutableStateOf(TextFieldValue(currentNote!!.title, TextRange(currentNote!!.title.length)))
+    }
+
+    // Sincronizar título cuando cambie externamente (solo si NO estamos editando)
+    LaunchedEffect(currentNote!!.title, isEditMode) {
+        if (!isEditMode && currentNote!!.title != titleValue.text) {
             val sel = min(titleValue.selection.end, currentNote!!.title.length)
             titleValue = TextFieldValue(currentNote!!.title, TextRange(sel))
         }
@@ -186,12 +248,45 @@ fun NoteDetailScreen(
         }
     }
 
+    // --- Guardado robusto ---
+    // Persiste los valores locales (titleValue/contentValue) en Room.
+    // Evita depender de _currentNote del ViewModel (que aquí no está enlazado con getNoteById()).
+    fun persistEditsAndSyncUi() {
+        val base = currentNote ?: return
+        val newTitle = titleValue.text.ifBlank { "Nota sin título" }
+        val newContent = contentValue.text
+
+        // Si no hubo cambios, no hagas I/O innecesario
+        val isDirty = newTitle != base.title || newContent != base.content
+        if (!isDirty) return
+
+        viewModel.updateNote(
+            base.copy(
+                title = newTitle,
+                content = newContent,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+    }
+
     // Acción reutilizable para entrar/salir de edición desde icono o doble tap
     val toggleEdit: () -> Unit = {
         if (isEditMode) {
-            viewModel.saveCurrentNote()
+            // Guardar al salir de edición
+            persistEditsAndSyncUi()
         }
         isEditMode = !isEditMode
+    }
+
+    // Back: si el usuario está editando, guardar de inmediato para no perder cambios
+    val handleBack: () -> Unit = handleBack@{
+        if (didNavigateBack) return@handleBack
+        if (isEditMode) {
+            persistEditsAndSyncUi()
+            isEditMode = false
+        }
+        didNavigateBack = true
+        onBack()
     }
 
     // Hay recordatorio activo si notificationTime != null
@@ -206,61 +301,16 @@ fun NoteDetailScreen(
 
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = handleBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
                 },
                 actions = {
-                    // Acciones en AppBar para aprovechar el espacio vertical
-                    var anchorShare by remember { mutableStateOf(false) }
+                    // Menú overflow (más opciones) con Copiar / Compartir / Eliminar
+                    var showOverflow by remember { mutableStateOf(false) }
+                    var showShareMenu by remember { mutableStateOf(false) }
 
-                    IconButton(onClick = {
-                        focusManager.clearFocus(force = true)
-                        keyboardController?.hide()
-                        copyToClipboard(context, currentNote!!.content)
-                    }) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.copy_24),
-                            contentDescription = "Copiar contenido"
-                        )
-                    }
-
-                    Box {
-                        IconButton(onClick = { anchorShare = true }) {
-                            Icon(Icons.Default.Share, contentDescription = "Compartir")
-                        }
-                        DropdownMenu(expanded = anchorShare, onDismissRequest = { anchorShare = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Texto (.txt)") },
-                                onClick = {
-                                    anchorShare = false
-                                    shareNote(context, currentNote!!, asMarkdown = false)
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Markdown (.md)") },
-                                onClick = {
-                                    anchorShare = false
-                                    shareNote(context, currentNote!!, asMarkdown = true)
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Contenido") },
-                                onClick = {
-                                    anchorShare = false
-                                    shareNoteContent(context, currentNote!!.content)
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("PDF (.pdf)") },
-                                onClick = {
-                                    anchorShare = false
-                                    shareNoteAsPdf(context, currentNote!!.title, currentNote!!.content)
-                                }
-                            )
-                        }
-                    }
-
+                    // --- Resto de acciones visibles ---
                     IconButton(onClick = { viewModel.toggleFavorite(currentNote!!.id) }) {
                         Icon(
                             imageVector = if (currentNote!!.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -269,17 +319,21 @@ fun NoteDetailScreen(
                         )
                     }
 
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Eliminar nota", tint = MaterialTheme.colorScheme.error)
-                    }
-
                     // Toggle Markdown solo visible en edición
                     if (isEditMode) {
                         IconButton(onClick = {
-                            viewModel.updateCurrentNote { current -> current.copy(isMarkdownEnabled = !current.isMarkdownEnabled) }
+                            val newValue = !currentNote!!.isMarkdownEnabled
+                            // Persistir en Room (la UI observa getNoteById(noteId))
+                            viewModel.toggleMarkdown(currentNote!!.id, newValue)
+                            // Actualizar inmediatamente el modelo local (optimistic UI)
+                            viewModel.updateNoteTemp(currentNote!!.copy(isMarkdownEnabled = newValue))
                         }) {
                             val markdownIcon = if (currentNote!!.isMarkdownEnabled) R.drawable.code_off_24px else R.drawable.code_24px
-                            Icon(painter = painterResource(id = markdownIcon), contentDescription = "Formato Markdown", tint = MaterialTheme.colorScheme.primary)
+                            Icon(
+                                painter = painterResource(id = markdownIcon),
+                                contentDescription = "Formato Markdown",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
 
@@ -295,30 +349,31 @@ fun NoteDetailScreen(
                     // Editar categorías
                     IconButton(onClick = { showEditCategoriesDialog = true }) {
                         Icon(
-                            painter = painterResource(id = R.drawable.format_list_bullete),
-                            contentDescription = "Editar categorías"
+                            painter = painterResource(id = R.drawable.bookmark_flag_24),
+                            contentDescription = "Seleccione categoría"
                         )
                     }
 
                     // Icono de campana para recordatorios POR TIEMPO (1/5/10/15 min)
-                    IconButton(
-                        onClick = { showReminderDialog = true },
-                        enabled = !hasActiveReminder && !currentNote!!.isNotificationPersistent
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.notification_24),
-                            contentDescription = "Recordatorio",
-                            tint = if (hasActiveReminder || currentNote!!.isNotificationPersistent)
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            else
-                                MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    // Icono para desactivar notificación persistente activa ("no seguir recordando")
-                    if (currentNote!!.isNotificationPersistent) {
+                    // FIX: cuando la notificación persistente está activa, no mostramos este botón;
+                    // en su lugar mostramos el botón de desactivar (para evitar 2 iconos).
+                    if (!currentNote!!.isNotificationPersistent) {
+                        IconButton(
+                            onClick = { showReminderDialog = true },
+                            enabled = !hasActiveReminder
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.notification_24),
+                                contentDescription = "Recordatorio",
+                                tint = if (hasActiveReminder)
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                else
+                                    MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    } else {
+                        // Icono para desactivar notificación persistente activa ("no seguir recordando")
                         IconButton(onClick = {
-                            // Cancelar la notificación persistente y limpiar estado en BD
                             NotificationHelper.cancelReminder(context, currentNote!!.id)
                             viewModel.clearReminder(currentNote!!.id)
                             Toast.makeText(
@@ -331,6 +386,110 @@ fun NoteDetailScreen(
                                 painter = painterResource(id = R.drawable.notification_audio_off_24),
                                 contentDescription = "No seguir recordando",
                                 tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    // Botón overflow al extremo superior derecho (a la derecha del icono de notificación)
+                    Box {
+                        IconButton(onClick = { showOverflow = true }) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.more_vert_24),
+                                contentDescription = "Más opciones"
+                            )
+                        }
+
+                        // Menú principal (anclado al botón overflow)
+                        DropdownMenu(
+                            expanded = showOverflow,
+                            onDismissRequest = {
+                                showOverflow = false
+                                showShareMenu = false
+                            }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Copiar") },
+                                onClick = {
+                                    showOverflow = false
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                    copyToClipboard(context, currentNote!!.content)
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.copy_24),
+                                        contentDescription = null
+                                    )
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("Compartir") },
+                                onClick = {
+                                    // Toggle: si ya está abierto, contraer; si no, expandir
+                                    showShareMenu = !showShareMenu
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = null
+                                    )
+                                }
+                            )
+
+                            // Submenú de compartir (mismos formatos que antes)
+                            if (showShareMenu) {
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("Texto (.txt)") },
+                                    onClick = {
+                                        showOverflow = false
+                                        showShareMenu = false
+                                        shareNote(context, currentNote!!, asMarkdown = false)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Markdown (.md)") },
+                                    onClick = {
+                                        showOverflow = false
+                                        showShareMenu = false
+                                        shareNote(context, currentNote!!, asMarkdown = true)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Contenido") },
+                                    onClick = {
+                                        showOverflow = false
+                                        showShareMenu = false
+                                        shareNoteContent(context, currentNote!!.content)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("PDF (.pdf)") },
+                                    onClick = {
+                                        showOverflow = false
+                                        showShareMenu = false
+                                        shareNoteAsPdf(context, currentNote!!.title, currentNote!!.content)
+                                    }
+                                )
+                            }
+
+                            HorizontalDivider()
+
+                            DropdownMenuItem(
+                                text = { Text("Eliminar") },
+                                onClick = {
+                                    showOverflow = false
+                                    showShareMenu = false
+                                    showDeleteDialog = true
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             )
                         }
                     }
@@ -347,7 +506,6 @@ fun NoteDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                // .imePadding() — se mueve a los contenedores scrollables de edición para evitar espacio vacío
         ) {
             // Mostrar la fecha pequeña y suave en la parte superior del contenido
             Text(
@@ -405,171 +563,111 @@ fun NoteDetailScreen(
 
             if (isEditMode) {
                 // MODO EDICIÓN
-                BasicTextField(
-                    value = titleValue,
-                    onValueChange = { newTitle ->
-                        titleValue = newTitle
-                        viewModel.updateCurrentNote { it.copy(title = newTitle.text) }
-                    },
+                val listState = rememberLazyListState()
+                val isDark = isSystemInDarkTheme()
+
+                LazyColumn(
+                    state = listState,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                        .focusRequester(titleFocusRequester),
-                    textStyle = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        color = if (isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.onSurface
-                    ),
-                    cursorBrush = SolidColor(if (isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.onSurface),
-                    decorationBox = { innerTextField ->
-                        Box {
-                            if (titleValue.text.isEmpty()) {
-                                Text(
-                                    "Título (opcional)",
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                    )
-                                )
-                            }
-                            innerTextField()
-                        }
-                    }
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-
-                // Editor de contenido (Markdown o texto normal)
-                if (currentNote!!.isMarkdownEnabled) {
-                    var preview by remember { mutableStateOf(false) }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        IconButton(onClick = { preview = !preview }) {
-                            val previewIcon = if (preview) R.drawable.visibility_off_24px else R.drawable.visibility_24px
-                            Icon(
-                                painter = painterResource(id = previewIcon),
-                                contentDescription = "Vista previa"
-                            )
-                        }
-                    }
-                    if (preview) {
-                        RichText(modifier = Modifier.fillMaxWidth()) { Markdown(contentValue.text) }
-                    } else {
-                        val isDark = isSystemInDarkTheme()
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .verticalScroll(editScrollState)
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surface)
-                            ) {
-                                BasicTextField(
-                                    value = contentValue,
-                                    onValueChange = { newValue ->
-                                        contentValue = newValue
-                                        viewModel.updateCurrentNote { it.copy(content = newValue.text) }
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .focusRequester(focusRequester)
-                                        .defaultMinSize(minHeight = 200.dp),
-                                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                        fontSize = 18.sp,
-                                        lineHeight = 28.sp,
-                                        color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    singleLine = false,
-                                    minLines = 8,
-                                    maxLines = Int.MAX_VALUE,
-                                    cursorBrush = SolidColor(if (isDark) Color.White else MaterialTheme.colorScheme.onSurface),
-                                    decorationBox = { inner ->
-                                        if (contentValue.text.isEmpty()) {
-                                            Text(
-                                                "Comienza a escribir tu nota aquí...",
-                                                style = MaterialTheme.typography.bodyLarge.copy(
-                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                                    lineHeight = 28.sp,
-                                                    fontSize = 18.sp
-                                                )
-                                            )
-                                        }
-                                        inner()
-                                    }
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    // Texto plano
-                    val isDark = isSystemInDarkTheme()
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(editScrollState)
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Box(
+                        .fillMaxSize()
+                        // FIX IME: no dupliques insets. Scaffold ya aplica safeDrawing (incl. IME en Compose).
+                        .onGloballyPositioned { coords ->
+                            viewportHeightPx = coords.size.height
+                            contentBoxTopInRootPx = coords.positionInRoot().y
+                        },
+                    // Un pequeño margen para que el final no quede pegado (sin sumar padding extra del IME)
+                    contentPadding = PaddingValues(bottom = 24.dp)
+                ) {
+                    item {
+                        BasicTextField(
+                            value = titleValue,
+                            onValueChange = { titleValue = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface)
-                        ) {
-                            BasicTextField(
-                                value = contentValue,
-                                onValueChange = { newValue ->
-                                    contentValue = newValue
-                                    viewModel.updateCurrentNote { it.copy(content = newValue.text) }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .focusRequester(focusRequester)
-                                    .defaultMinSize(minHeight = 200.dp),
-                                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                    fontSize = 18.sp,
-                                    lineHeight = 28.sp,
-                                    color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
-                                ),
-                                singleLine = false,
-                                minLines = 8,
-                                maxLines = Int.MAX_VALUE,
-                                cursorBrush = SolidColor(if (isDark) Color.White else MaterialTheme.colorScheme.onSurface),
-                                decorationBox = { inner ->
-                                    if (contentValue.text.isEmpty()) {
+                                .padding(16.dp)
+                                .focusRequester(titleFocusRequester),
+                            textStyle = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(if (isDark) Color.White else MaterialTheme.colorScheme.onSurface),
+                            decorationBox = { inner ->
+                                Box {
+                                    if (titleValue.text.isEmpty()) {
                                         Text(
-                                            "Comienza a escribir tu nota aquí...",
-                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                            "Título (opcional)",
+                                            style = MaterialTheme.typography.titleLarge.copy(
                                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                                lineHeight = 28.sp,
-                                                fontSize = 18.sp
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                                             )
                                         )
                                     }
                                     inner()
                                 }
+                            }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+
+                    if (currentNote!!.isMarkdownEnabled) {
+                        item {
+                            var preview by remember { mutableStateOf(false) }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                IconButton(onClick = { preview = !preview }) {
+                                    val previewIcon = if (preview) R.drawable.visibility_off_24px else R.drawable.visibility_24px
+                                    Icon(
+                                        painter = painterResource(id = previewIcon),
+                                        contentDescription = "Vista previa"
+                                    )
+                                }
+                            }
+
+                            if (preview) {
+                                RichText(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                    Markdown(contentValue.text)
+                                }
+                            } else {
+                                // Editor cuando NO está en preview
+                                NoteDetailContentEditor(
+                                    contentValue = contentValue,
+                                    onContentValueChange = { contentValue = it },
+                                    focusRequester = focusRequester,
+                                    isDark = isDark,
+                                    requestCenterCursor = { requestCenterCursor(listState) }
+                                )
+                            }
+                        }
+                    } else {
+                        item {
+                            // Editor normal (no-markdown)
+                            NoteDetailContentEditor(
+                                contentValue = contentValue,
+                                onContentValueChange = { contentValue = it },
+                                focusRequester = focusRequester,
+                                isDark = isDark,
+                                // Ocupar el alto restante del LazyColumn para que se vea el contenido completo
+                                modifier = Modifier.fillParentMaxHeight(),
+                                requestCenterCursor = { requestCenterCursor(listState) }
                             )
                         }
                     }
                 }
-            } else {
-                // MODO LECTURA
+            }
+
+            // MODO LECTURA (fuera del if isEditMode)
+            if (!isEditMode) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp)
                         .verticalScroll(scrollState)
-                        // Doble tap en el área de lectura para entrar/salir de edición
                         .pointerInput(currentNote!!.id) {
-                            detectTapGestures(
-                                onDoubleTap = {
-                                    toggleEdit()
-                                }
-                            )
+                            detectTapGestures(onDoubleTap = { toggleEdit() })
                         }
                 ) {
                     if (currentNote!!.title.isNotEmpty() && currentNote!!.title != "Nota sin título") {
@@ -754,7 +852,7 @@ fun EditCategoriesDialog(
     val scrollState = rememberScrollState()
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Editar categorías") },
+        title = { Text("Seleccione categoría") },
         text = {
             Column(
                 modifier = Modifier
@@ -967,4 +1065,61 @@ private fun createPdfFile(context: Context, title: String, content: String): Fil
     }
     document.close()
     return outFile
+}
+
+@Composable
+private fun NoteDetailContentEditor(
+    contentValue: TextFieldValue,
+    onContentValueChange: (TextFieldValue) -> Unit,
+    focusRequester: FocusRequester,
+    isDark: Boolean,
+    modifier: Modifier = Modifier,
+    requestCenterCursor: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            // Fondo camuflado con el tema (mantiene el 'recuadro' pero sin contraste feo)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.02f))
+            .padding(8.dp)
+    ) {
+        BasicTextField(
+            value = contentValue,
+            onValueChange = onContentValueChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight()
+                .focusRequester(focusRequester)
+                // Mantén un mínimo pero permite crecer; evita 'una sola línea'
+                .defaultMinSize(minHeight = 240.dp),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 18.sp,
+                lineHeight = 28.sp,
+                color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
+            ),
+            singleLine = false,
+            minLines = 10,
+            maxLines = Int.MAX_VALUE,
+            cursorBrush = SolidColor(if (isDark) Color.White else MaterialTheme.colorScheme.onSurface),
+            decorationBox = { inner ->
+                if (contentValue.text.isEmpty()) {
+                    Text(
+                        "Comienza a escribir tu nota aquí...",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            lineHeight = 28.sp,
+                            fontSize = 18.sp
+                        )
+                    )
+                }
+                inner()
+            }
+        )
+    }
+
+    LaunchedEffect(contentValue.text, contentValue.selection) {
+        delay(16)
+        requestCenterCursor()
+    }
 }
