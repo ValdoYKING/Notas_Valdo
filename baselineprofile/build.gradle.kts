@@ -1,7 +1,6 @@
 plugins {
     id("com.android.test")
-    id("androidx.baselineprofile") version "1.4.1"
-    kotlin("android")
+    // (Desactivado temporalmente) id("androidx.baselineprofile") version "1.4.1" -> incompatible con AGP 9.0
 }
 
 android {
@@ -20,10 +19,11 @@ android {
     // No definimos 'release' aquí, solo usamos el build type por defecto (debug)
 }
 
-baselineProfile {
-    // Ejecuta las pruebas en dispositivos conectados para generar el perfil
-    useConnectedDevices = true
-}
+// (Desactivado temporalmente)
+// baselineProfile {
+//     // Ejecuta las pruebas en dispositivos conectados para generar el perfil
+//     useConnectedDevices = true
+// }
 
 dependencies {
     implementation(libs.androidx.junit)
