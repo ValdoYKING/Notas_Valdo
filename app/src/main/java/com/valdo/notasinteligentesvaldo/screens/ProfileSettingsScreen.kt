@@ -1,29 +1,42 @@
 package com.valdo.notasinteligentesvaldo.screens
 
+import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.provider.MediaStore
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.valdo.notasinteligentesvaldo.data.UiPrefs
 import coil.compose.AsyncImage
+import com.valdo.notasinteligentesvaldo.data.UiPrefs
+import com.valdo.notasinteligentesvaldo.ui.avatar.AvatarContainer
+import com.valdo.notasinteligentesvaldo.ui.avatar.AvatarStyle
+import com.valdo.notasinteligentesvaldo.ui.avatar.avatarStyleFromId
+import com.canhub.cropper.CropImageContract
+import com.canhub.cropper.CropImageContractOptions
+import com.canhub.cropper.CropImageOptions
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -35,15 +48,29 @@ fun ProfileSettingsScreen(navController: NavController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    // Colores para el recortador (Activity AppCompat) derivados del tema actual.
+    // Esto asegura que en modo oscuro no se vea una pantalla blanca y que los iconos/botones tengan contraste.
+    val colorScheme = MaterialTheme.colorScheme
+    val cropperToolbarColor = colorScheme.surface.toArgb()
+    val cropperToolbarContentColor = colorScheme.onSurface.toArgb()
+    val cropperBackgroundColor = colorScheme.background.toArgb()
+
     val firstName by UiPrefs.firstNameFlow(context).collectAsState(initial = "")
     val lastName by UiPrefs.lastNameFlow(context).collectAsState(initial = "")
     val birthDate by UiPrefs.birthDateFlow(context).collectAsState(initial = "")
     val profileUriString by UiPrefs.profileImageUriFlow(context).collectAsState(initial = "")
+    val avatarStyleId by UiPrefs.avatarStyleFlow(context).collectAsState(initial = "circle")
 
     var firstNameState by remember { mutableStateOf("") }
     var lastNameState by remember { mutableStateOf("") }
     var birthDateState by remember { mutableStateOf("") }
     var profileUri by remember { mutableStateOf<Uri?>(null) }
+
+    var showAvatarSheet by remember { mutableStateOf(false) }
+    var showPhotoViewer by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    var selectedStyle by remember { mutableStateOf(avatarStyleFromId(avatarStyleId)) }
 
     // Flags para saber si el usuario ya tocó/edito los campos (evitar sobreescribir)
     var editedFirstName by remember { mutableStateOf(false) }
@@ -62,12 +89,99 @@ fun ProfileSettingsScreen(navController: NavController) {
     LaunchedEffect(profileUriString) {
         if (profileUri == null && profileUriString.isNotBlank()) profileUri = Uri.parse(profileUriString)
     }
+    LaunchedEffect(avatarStyleId) {
+        selectedStyle = avatarStyleFromId(avatarStyleId)
+    }
 
-    // Picker de imagen
+    // 3) Recorte (retorna URI)
+    val cropImageLauncher = rememberLauncherForActivityResult(CropImageContract()) { result ->
+        val uri = result.uriContent
+        if (uri != null) profileUri = uri
+    }
+
+    fun safeLaunchCrop(uri: Uri) {
+        try {
+            cropImageLauncher.launch(
+                CropImageContractOptions(
+                    uri,
+                    CropImageOptions(
+                        aspectRatioX = 1,
+                        aspectRatioY = 1,
+                        fixAspectRatio = true,
+                        activityTitle = "Editar foto",
+                        // Toolbar con colores del tema actual
+                        toolbarColor = cropperToolbarColor,
+                        toolbarBackButtonColor = cropperToolbarContentColor,
+                        // Botón de confirmar
+                        cropMenuCropButtonTitle = "Listo",
+                        // Evita el blanco alrededor (fondo de la Activity de recorte)
+                        backgroundColor = cropperBackgroundColor
+                    )
+                )
+            )
+        } catch (_: Throwable) {
+            // Si el cropper no puede abrir la uri, evitamos crash
+        }
+    }
+
+    // 2) Cámara (genera un URI temporal y luego recorta)
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val uri = pendingCameraUri
+        pendingCameraUri = null
+        if (ok && uri != null) safeLaunchCrop(uri)
+    }
+
+    fun launchCamera() {
+        try {
+            val values = android.content.ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "profile_${System.currentTimeMillis()}.jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            }
+            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            if (uri != null) {
+                pendingCameraUri = uri
+                cameraLauncher.launch(uri)
+            }
+        } catch (_: ActivityNotFoundException) {
+            // sin app de cámara
+        } catch (_: SecurityException) {
+            // sin permisos/denegado
+        } catch (_: Throwable) {
+            // cualquier otro fallo: no crashear
+        }
+    }
+
+    // Permiso de cámara (runtime)
+    var pendingCameraAfterPermission by remember { mutableStateOf(false) }
+    val requestCameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted && pendingCameraAfterPermission) {
+            pendingCameraAfterPermission = false
+            launchCamera()
+        } else {
+            pendingCameraAfterPermission = false
+        }
+    }
+
+    fun ensureCameraAndLaunch() {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            launchCamera()
+        } else {
+            pendingCameraAfterPermission = true
+            requestCameraPermission.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    // 1) Selección desde galería (SAF)
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            profileUri = uri
+            try {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (_: SecurityException) {
+                // Algunas URIs no permiten permiso persistente; igual intentamos recortar.
+            }
+            safeLaunchCrop(uri)
         }
     }
 
@@ -79,6 +193,7 @@ fun ProfileSettingsScreen(navController: NavController) {
                 UiPrefs.setLastName(context, lastNameState)
                 UiPrefs.setBirthDate(context, birthDateState)
                 UiPrefs.setProfileImageUri(context, profileUri?.toString().orEmpty())
+                UiPrefs.setAvatarStyle(context, selectedStyle.id)
             }
         }
     }
@@ -92,6 +207,117 @@ fun ProfileSettingsScreen(navController: NavController) {
         if (millis != null) {
             val localDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
             birthDateState = localDate.format(formatter)
+        }
+    }
+
+    if (showPhotoViewer && profileUri != null) {
+        AlertDialog(
+            onDismissRequest = { showPhotoViewer = false },
+            confirmButton = {
+                TextButton(onClick = { showPhotoViewer = false }) { Text("Cerrar") }
+            },
+            title = { Text("Foto de perfil") },
+            text = {
+                AsyncImage(
+                    model = profileUri,
+                    contentDescription = "Foto de perfil",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 180.dp, max = 360.dp)
+                )
+            }
+        )
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Eliminar foto de perfil") },
+            text = { Text("¿Seguro que quieres eliminar tu foto de perfil?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        profileUri = null
+                        showDeleteConfirm = false
+                    }
+                ) { Text("Eliminar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showAvatarSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAvatarSheet = false }
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Foto de perfil", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(4.dp))
+
+                ListItem(
+                    headlineContent = { Text("Ver foto de perfil") },
+                    leadingContent = { Icon(Icons.Default.Visibility, contentDescription = null) },
+                    supportingContent = { Text(if (profileUri != null) "Abrir previsualización" else "Aún no tienes una foto") },
+                    modifier = Modifier.clickable {
+                        showAvatarSheet = false
+                        if (profileUri != null) showPhotoViewer = true
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Tomar nueva foto de perfil") },
+                    leadingContent = { Icon(Icons.Default.PhotoCamera, contentDescription = null) },
+                    modifier = Modifier.clickable {
+                        showAvatarSheet = false
+                        ensureCameraAndLaunch()
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Seleccionar foto de perfil") },
+                    leadingContent = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
+                    modifier = Modifier.clickable {
+                        showAvatarSheet = false
+                        imagePicker.launch(arrayOf("image/*"))
+                    }
+                )
+
+                if (profileUri != null) {
+                    ListItem(
+                        headlineContent = { Text("Eliminar foto de perfil") },
+                        leadingContent = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                        modifier = Modifier.clickable {
+                            showAvatarSheet = false
+                            showDeleteConfirm = true
+                        }
+                    )
+                }
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+                Text("Diseño de avatar", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(4.dp))
+
+                AvatarStyle.entries.forEach { style ->
+                    ListItem(
+                        headlineContent = { Text(style.label) },
+                        leadingContent = { Icon(Icons.Default.Style, contentDescription = null) },
+                        trailingContent = {
+                            RadioButton(
+                                selected = selectedStyle == style,
+                                onClick = { selectedStyle = style }
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedStyle = style }
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+            }
         }
     }
 
@@ -111,6 +337,7 @@ fun ProfileSettingsScreen(navController: NavController) {
                             UiPrefs.setLastName(context, lastNameState)
                             UiPrefs.setBirthDate(context, birthDateState)
                             UiPrefs.setProfileImageUri(context, profileUri?.toString().orEmpty())
+                            UiPrefs.setAvatarStyle(context, selectedStyle.id)
                         }
                         navController.popBackStack()
                     }) {
@@ -128,14 +355,12 @@ fun ProfileSettingsScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Avatar + botón editar
-            Box(
+            // Avatar
+            AvatarContainer(
+                style = selectedStyle,
                 modifier = Modifier
                     .size(96.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .clickable { imagePicker.launch(arrayOf("image/*")) },
-                contentAlignment = Alignment.Center
+                    .clickable { showAvatarSheet = true }
             ) {
                 if (profileUri != null) {
                     AsyncImage(
@@ -143,10 +368,6 @@ fun ProfileSettingsScreen(navController: NavController) {
                         contentDescription = "Imagen de perfil",
                         modifier = Modifier.fillMaxSize()
                     )
-                    // Botón pequeño para eliminar imagen
-                    IconButton(onClick = { profileUri = null }, modifier = Modifier.align(Alignment.TopEnd)) {
-                        Icon(Icons.Default.Delete, contentDescription = "Eliminar imagen", tint = MaterialTheme.colorScheme.error)
-                    }
                 } else {
                     val initials = ((firstNameState.firstOrNull()?.toString() ?: "") + (lastNameState.firstOrNull()?.toString() ?: "")).uppercase().ifBlank { "U" }
                     Text(initials, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)

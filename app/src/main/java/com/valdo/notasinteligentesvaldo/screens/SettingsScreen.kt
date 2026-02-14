@@ -7,17 +7,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.valdo.notasinteligentesvaldo.data.UiPrefs
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.platform.LocalContext
+import com.valdo.notasinteligentesvaldo.ui.avatar.AvatarContainer
+import com.valdo.notasinteligentesvaldo.ui.avatar.avatarStyleFromId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,6 +30,7 @@ fun SettingsScreen(
     val themeMode by UiPrefs.themeModeFlow(context).collectAsState(initial = "system")
     val startAction by UiPrefs.startActionFlow(context).collectAsState(initial = "notes")
     val profileUri by UiPrefs.profileImageUriFlow(context).collectAsState(initial = "")
+    val avatarStyleId by UiPrefs.avatarStyleFlow(context).collectAsState(initial = "circle")
 
     val fullName = (firstName.trim() + " " + lastName.trim()).trim()
     val initials = ((firstName.firstOrNull()?.toString() ?: "") + (lastName.firstOrNull()?.toString() ?: "")).uppercase().ifBlank { "U" }
@@ -75,13 +75,12 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val style = avatarStyleFromId(avatarStyleId)
+
                     // Avatar placeholder
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
+                    AvatarContainer(
+                        style = style,
+                        modifier = Modifier.size(56.dp)
                     ) {
                         if (profileUri.isNotBlank()) {
                             AsyncImage(
@@ -93,6 +92,7 @@ fun SettingsScreen(
                             Text(initials, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
                         }
                     }
+
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Tu perfil", style = MaterialTheme.typography.titleMedium)

@@ -86,4 +86,7 @@ dependencies {
     implementation(libs.coil)
     implementation(libs.richtext.ui.material3)
     implementation(libs.richtext.commonmark)
+
+    // Cropper (recorte visual de imágenes)
+    implementation("com.vanniktech:android-image-cropper:4.6.0")
 }

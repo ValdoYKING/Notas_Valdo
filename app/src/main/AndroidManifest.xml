@@ -5,6 +5,14 @@
     <!-- Permiso para mostrar notificaciones en Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Permiso para usar la cámara (requerido al tomar foto de perfil) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- La cámara no es requisito para instalar la app -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
     <application
         android:allowBackup="true"
         android:enableOnBackInvokedCallback="true"
@@ -16,6 +24,14 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.NotasInteligentesValdo"
         tools:targetApi="31">
+
+        <!-- Actividad del cropper (librería) requiere Theme.AppCompat -->
+        <activity
+            android:name="com.canhub.cropper.CropImageActivity"
+            android:exported="true"
+            android:theme="@style/Theme_NotasInteligentesValdo_Cropper"
+            tools:replace="android:exported,android:theme" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

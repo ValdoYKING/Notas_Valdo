@@ -25,6 +25,7 @@ object UiPrefs {
     private val KEY_BIRTH_DATE = stringPreferencesKey("birth_date") // formato ISO: yyyy-MM-dd
     private val KEY_PROFILE_URI = stringPreferencesKey("profile_uri") // uri de la imagen como string
     private val KEY_START_ACTION = stringPreferencesKey("start_action") // 'notes' | 'quick_note'
+    private val KEY_AVATAR_STYLE = stringPreferencesKey("avatar_style") // id del diseño de avatar
 
     fun filterTypeFlow(context: Context): Flow<String> =
         context.uiDataStore.data.map { prefs -> prefs[KEY_FILTER] ?: "all" }
@@ -56,6 +57,9 @@ object UiPrefs {
 
     fun startActionFlow(context: Context): Flow<String> =
         context.uiDataStore.data.map { prefs -> prefs[KEY_START_ACTION] ?: "notes" }
+
+    fun avatarStyleFlow(context: Context): Flow<String> =
+        context.uiDataStore.data.map { prefs -> prefs[KEY_AVATAR_STYLE] ?: "circle" }
 
     suspend fun setFilterType(context: Context, filter: String) {
         context.uiDataStore.edit { it[KEY_FILTER] = filter }
@@ -102,5 +106,10 @@ object UiPrefs {
     suspend fun setStartAction(context: Context, action: String) {
         val safe = if (action == "quick_note") "quick_note" else "notes"
         context.uiDataStore.edit { it[KEY_START_ACTION] = safe }
+    }
+
+    suspend fun setAvatarStyle(context: Context, styleId: String) {
+        val safe = styleId.take(32)
+        context.uiDataStore.edit { it[KEY_AVATAR_STYLE] = safe }
     }
 }

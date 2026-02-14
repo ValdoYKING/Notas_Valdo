@@ -17,6 +17,31 @@
         <item name="splashScreenIconSize">96dp</item>
     </style>
 
+    <!--
+      Tema para la actividad del cropper.
+      IMPORTANTE: el cropper usa una Activity AppCompat con toolbar/menú propios.
+      Si usamos NoActionBar, en algunos dispositivos termina viéndose “solo la imagen” (sin controles).
+      Por eso aquí usamos un tema DayNight CON ActionBar/Toolbar.
+    -->
+    <style name="Theme_NotasInteligentesValdo_Cropper" parent="Theme.AppCompat.DayNight.DarkActionBar">
+        <!-- Toolbar clara + contenido oscuro -->
+        <item name="colorPrimary">@android:color/white</item>
+        <item name="colorPrimaryDark">@android:color/white</item>
+        <item name="colorAccent">@android:color/black</item>
+
+        <!-- Texto/íconos de la ActionBar -->
+        <item name="android:textColorPrimary">@android:color/black</item>
+        <item name="android:textColorSecondary">@android:color/black</item>
+
+        <!-- Barra de estado visible: fondo claro + íconos oscuros -->
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+
+        <!-- Fondo de la Activity (lo que se ve alrededor de la imagen) -->
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+
+
     <!-- Compat: Tema de Splash para API < 31 (solo color de fondo) -->
     <style name="Theme.NotasInteligentesValdo.Splash" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
