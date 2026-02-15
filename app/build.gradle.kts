@@ -11,21 +11,22 @@ android {
     defaultConfig {
         applicationId = "com.valdo.notasinteligentesvaldo"
         minSdk = 28
-        targetSdk = 35  // Actualizado a la versión más reciente
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
 
-    // Configuración para Room schema export - Actualizada para KSP
-    ksp {
-        arg("room.schemaLocation", "$projectDir/schemas")
+        // Configuración para Room schema export - KSP
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -88,7 +89,7 @@ dependencies {
     implementation(libs.richtext.commonmark)
 
     // Cropper (recorte visual de imágenes)
-    implementation("com.vanniktech:android-image-cropper:4.6.0")
+    implementation(libs.android.image.cropper)
 
     // Autenticación biométrica
     implementation(libs.androidx.biometric)

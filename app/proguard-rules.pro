@@ -14,8 +14,37 @@
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+-keepattributes SourceFile,LineNumberTable
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-renamesourcefileattribute SourceFile
+
+# ===== REGLAS PARA ROOM =====
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-dontwarn androidx.room.paging.**
+
+# ===== REGLAS PARA KOTLIN COROUTINES =====
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepclassmembers class kotlinx.coroutines.** {
+    volatile <fields>;
+}
+
+# ===== REGLAS PARA COMPOSE =====
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# ===== REGLAS PARA DATASTORE =====
+-keepclassmembers class * extends androidx.datastore.preferences.protobuf.GeneratedMessageLite {
+    <fields>;
+}
+
+# ===== REGLAS PARA COIL (carga de imágenes) =====
+-dontwarn coil.**
+-keep class coil.** { *; }
+
+# ===== MANTENER ATRIBUTOS PARA DEBUGGING =====
+-keepattributes *Annotation*, InnerClasses
+-keepattributes Signature, Exception

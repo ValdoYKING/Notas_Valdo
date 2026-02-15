@@ -24,6 +24,7 @@ baselineprofilePlugin = "1.4.1"
 coil = "2.7.0"
 richtext = "0.20.0"
 biometric = "1.1.0"
+imageCropper = "4.7.0"
 
 [libraries]
 androidx-animation = { module = "androidx.compose.animation:animation", version.ref = "animation" }
@@ -59,6 +60,7 @@ coil = { group = "io.coil-kt", name = "coil", version.ref = "coil" }
 richtext-ui-material3 = { group = "com.halilibo.compose-richtext", name = "richtext-ui-material3", version.ref = "richtext" }
 richtext-commonmark = { group = "com.halilibo.compose-richtext", name = "richtext-commonmark", version.ref = "richtext" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
+android-image-cropper = { group = "com.vanniktech", name = "android-image-cropper", version.ref = "imageCropper" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
