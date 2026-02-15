@@ -10,7 +10,7 @@ import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
+import com.valdo.notasinteligentesvaldo.ui.theme.LocalAppDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -49,17 +49,8 @@ fun ProfileSettingsScreen(navController: NavController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Leer la preferencia de tema de la app (igual que en MainActivity)
-    val themeMode by UiPrefs.themeModeFlow(context).collectAsState(initial = "system")
-    val isSystemDark = isSystemInDarkTheme()
-
-    // Determinar si el tema actual es oscuro según la preferencia de la app
-    val isDarkTheme = when (themeMode) {
-        "light" -> false
-        "dark" -> true
-        "dark_plus" -> true
-        else -> isSystemDark
-    }
+    // Usar el tema de la app (igual que el resto de pantallas)
+    val isDarkTheme = LocalAppDarkTheme.current
 
     val colorScheme = MaterialTheme.colorScheme
 

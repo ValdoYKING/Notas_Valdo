@@ -2,8 +2,9 @@ package com.valdo.notasinteligentesvaldo.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
+import com.valdo.notasinteligentesvaldo.ui.theme.LocalAppDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -53,9 +54,11 @@ import androidx.compose.ui.text.TextRange
 fun NoteFormScreen(
     onNoteSaved: (Note, Set<Int>) -> Unit,
     onBack: () -> Unit,
-    viewModel: NoteViewModel = viewModel()
+    viewModel: NoteViewModel = viewModel(),
+    isVaultMode: Boolean = false // NUEVO: indica si es para la bóveda (usa categorías secretas)
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
+    val isDark = LocalAppDarkTheme.current  // Usar tema del usuario, no del sistema
 
     // Saver para persistir TextFieldValue (texto + selección) en rotación
     val textFieldValueSaver: Saver<TextFieldValue, List<Any>> = remember {
@@ -75,7 +78,12 @@ fun NoteFormScreen(
     var textFieldValue by rememberSaveable(stateSaver = textFieldValueSaver) { mutableStateOf(TextFieldValue("")) }
     var isMarkdownEnabled by rememberSaveable { mutableStateOf(false) }
 
-    val allCategories by viewModel.allCategories.collectAsState()
+    // MODIFICADO: Usar categorías secretas si isVaultMode = true, o normales si false
+    val allCategories by if (isVaultMode) {
+        viewModel.secretCategories.collectAsState()
+    } else {
+        viewModel.allCategories.collectAsState()
+    }
     var selectedCategories by rememberSaveable { mutableStateOf(setOf<Int>()) }
     var showAddCategoryDialog by rememberSaveable { mutableStateOf(false) }
     var newCategoryName by rememberSaveable { mutableStateOf("") }
@@ -215,12 +223,12 @@ fun NoteFormScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 textStyle = MaterialTheme.typography.titleLarge.copy(
-                    color = if (isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.onSurface,
+                    color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
                 ),
                 cursorBrush = SolidColor(
-                    if (isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.onSurface
+                    if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
                 ),
                 decorationBox = { innerTextField ->
                     Box {
@@ -228,7 +236,7 @@ fun NoteFormScreen(
                             Text(
                                 text = title.ifEmpty { "Añade un título..." },
                                 style = MaterialTheme.typography.titleLarge.copy(
-                                    color = if (isSystemInDarkTheme()) Color(0xFFEFEFEF) else MaterialTheme.colorScheme.onSurface.copy(alpha = titleAlpha),
+                                    color = if (isDark) Color(0xFFEFEFEF) else MaterialTheme.colorScheme.onSurface.copy(alpha = titleAlpha),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 20.sp
                                 )
@@ -305,17 +313,17 @@ fun NoteFormScreen(
                             textStyle = MaterialTheme.typography.bodyLarge.copy(
                                 fontSize = 18.sp,
                                 lineHeight = 28.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = if (isDark) Color.White else Color.Black
                             ),
                             singleLine = false,
                             maxLines = Int.MAX_VALUE,
-                            cursorBrush = SolidColor(if (isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.onSurface),
+                            cursorBrush = SolidColor(if (isDark) Color.White else Color.Black),
                             decorationBox = { innerTextField ->
                                 if (textFieldValue.text.isEmpty()) {
                                     Text(
                                         "Comienza a escribir tu nota aquí...",
                                         style = MaterialTheme.typography.bodyLarge.copy(
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                            color = if (isDark) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.5f)
                                         )
                                     )
                                 }
@@ -369,7 +377,8 @@ fun NoteFormScreen(
                             } else if (allCategories.any { it.name.equals(name, true) }) {
                                 categoryError = "La categoría ya existe."
                             } else {
-                                viewModel.insertCategory(Category(name = name))
+                                // MODIFICADO: Crear categoría secreta si isVaultMode = true
+                                viewModel.insertCategory(Category(name = name, isSecret = isVaultMode))
                                 newCategoryName = ""
                                 showAddCategoryDialog = false
                                 categoryError = ""
@@ -407,7 +416,7 @@ fun MarkdownEditor(
     modifier: Modifier = Modifier
 ) {
     var preview by remember { mutableStateOf(false) }
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalAppDarkTheme.current  // Usar tema del usuario, no del sistema
 
     // NUEVO: estados para seguir el cursor y evitar que el teclado lo tape
     val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)

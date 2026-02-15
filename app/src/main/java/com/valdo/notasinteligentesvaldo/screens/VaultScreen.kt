@@ -45,7 +45,7 @@ fun VaultScreen(
     val allSecretNotesState by viewModel.secretNotes.collectAsState()
     val favoriteSecretNotesState by viewModel.favoriteSecretNotes.collectAsState()
     val notesByCategory = viewModel.secretNotesWithCategories.collectAsState().value
-    val allCategories by viewModel.allCategories.collectAsState()
+    val allCategories by viewModel.secretCategories.collectAsState() // CAMBIADO: usar categorías secretas
 
     // Estados locales
     var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
@@ -224,7 +224,8 @@ fun VaultScreen(
             },
             onAddCategory = { name, emoji ->
                 scope.launch {
-                    viewModel.insertCategory(Category(name = name, emoji = emoji))
+                    // CAMBIADO: Crear categoría secreta (isSecret = true)
+                    viewModel.insertCategory(Category(name = name, emoji = emoji, isSecret = true))
                 }
             },
             onEditCategory = { category ->

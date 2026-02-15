@@ -67,8 +67,12 @@ interface NoteDao {
     @Delete
     suspend fun deleteCategory(category: Category)
 
-    @Query("SELECT * FROM categories ORDER BY name ASC")
+    @Query("SELECT * FROM categories WHERE isSecret = 0 ORDER BY name ASC")
     fun getAllCategories(): Flow<List<Category>>
+
+    // NUEVO: Obtener categorías de la bóveda
+    @Query("SELECT * FROM categories WHERE isSecret = 1 ORDER BY name ASC")
+    fun getSecretCategories(): Flow<List<Category>>
 
     @Transaction
     @Query("SELECT * FROM categories WHERE categoryId = :categoryId")

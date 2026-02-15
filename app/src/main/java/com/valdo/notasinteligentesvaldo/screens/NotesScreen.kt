@@ -21,7 +21,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.valdo.notasinteligentesvaldo.components.NoteCard
 import com.valdo.notasinteligentesvaldo.data.UiPrefs
@@ -38,9 +41,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Text
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.sp
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.valdo.notasinteligentesvaldo.util.NoteActions
@@ -354,7 +354,9 @@ fun NotesScreen(
                 selectedCategoryId = catId
                 showCategoryManager = false
             },
-            onAddCategory = { name: String, emoji: String -> viewModel.insertCategory(Category(name = name, emoji = emoji)) },
+            onAddCategory = { name: String, emoji: String ->
+                viewModel.insertCategory(Category(name = name, emoji = emoji, isSecret = false))
+            },
             onEditCategory = { category: Category -> viewModel.updateCategory(category) },
             onDeleteCategory = { category: Category -> viewModel.deleteCategory(category) }
         )
@@ -605,32 +607,77 @@ fun CategoryManagerDialog(
         }
     )
 
-    // Picker de emoji para agregar
+    // Picker de emoji para agregar (con campo de texto personalizado)
     if (showEmojiPickerForAdd) {
         AlertDialog(
             onDismissRequest = { showEmojiPickerForAdd = false },
-            title = { Text("Elige un emoji") },
+            title = { Text("Elige o escribe un emoji") },
             text = {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState())
                 ) {
-                    emojiChoices.forEach { e ->
-                        Text(
-                            text = e,
-                            fontSize = 24.sp,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clickable {
-                                    newCategoryEmoji = e
-                                    showEmojiPickerForAdd = false
-                                },
-                            textAlign = TextAlign.Center
-                        )
+                    // Campo de texto para emoji personalizado
+                    OutlinedTextField(
+                        value = newCategoryEmoji,
+                        onValueChange = { text ->
+                            // Limitar a máximo 10 caracteres Unicode (soporta emojis compuestos)
+                            // Los emojis pueden usar de 1 a 7+ caracteres Unicode
+                            if (text.length <= 10) {
+                                newCategoryEmoji = text
+                            }
+                        },
+                        label = { Text("Emoji") },
+                        placeholder = { Text("📝") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = TextStyle(fontSize = 24.sp, textAlign = TextAlign.Center)
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Text(
+                        text = "Sugerencias rápidas:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Emojis sugeridos
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        emojiChoices.forEach { e ->
+                            Text(
+                                text = e,
+                                fontSize = 24.sp,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clickable {
+                                        newCategoryEmoji = e
+                                        showEmojiPickerForAdd = false
+                                    },
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             },
             confirmButton = {
+                TextButton(
+                    onClick = {
+                        // Si está vacío, usar el default
+                        if (newCategoryEmoji.isBlank()) {
+                            newCategoryEmoji = "📝"
+                        }
+                        showEmojiPickerForAdd = false
+                    }
+                ) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
                 TextButton(onClick = { showEmojiPickerForAdd = false }) { Text("Cancelar") }
             }
         )
@@ -677,28 +724,73 @@ fun CategoryManagerDialog(
     if (showEmojiPickerForEdit) {
         AlertDialog(
             onDismissRequest = { showEmojiPickerForEdit = false },
-            title = { Text("Elige un emoji") },
+            title = { Text("Elige o escribe un emoji") },
             text = {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState())
                 ) {
-                    emojiChoices.forEach { e ->
-                        Text(
-                            text = e,
-                            fontSize = 24.sp,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clickable {
-                                    editCategoryEmoji = e
-                                    showEmojiPickerForEdit = false
-                                },
-                            textAlign = TextAlign.Center
-                        )
+                    // Campo de texto para emoji personalizado
+                    OutlinedTextField(
+                        value = editCategoryEmoji,
+                        onValueChange = { text ->
+                            // Limitar a máximo 10 caracteres Unicode (soporta emojis compuestos)
+                            // Los emojis pueden usar de 1 a 7+ caracteres Unicode
+                            if (text.length <= 10) {
+                                editCategoryEmoji = text
+                            }
+                        },
+                        label = { Text("Emoji") },
+                        placeholder = { Text("📝") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = TextStyle(fontSize = 24.sp, textAlign = TextAlign.Center)
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Text(
+                        text = "Sugerencias rápidas:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Emojis sugeridos
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        emojiChoices.forEach { e ->
+                            Text(
+                                text = e,
+                                fontSize = 24.sp,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clickable {
+                                        editCategoryEmoji = e
+                                        showEmojiPickerForEdit = false
+                                    },
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             },
             confirmButton = {
+                TextButton(
+                    onClick = {
+                        // Si está vacío, usar el default
+                        if (editCategoryEmoji.isBlank()) {
+                            editCategoryEmoji = "📝"
+                        }
+                        showEmojiPickerForEdit = false
+                    }
+                ) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
                 TextButton(onClick = { showEmojiPickerForEdit = false }) { Text("Cancelar") }
             }
         )

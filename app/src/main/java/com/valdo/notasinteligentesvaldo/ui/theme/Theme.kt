@@ -27,7 +27,12 @@ private val DarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
-    tertiary = Pink40
+    tertiary = Pink40,
+    background = Color.White,
+    surface = Color.White,
+    onBackground = Color.Black,
+    onSurface = Color.Black,
+    onSurfaceVariant = Color.Black.copy(alpha = 0.75f)
 )
 
 // Esquema especial para "Oscuro+" (OLED) con surface negro puro y ahorro de energía en pantallas OLED.
@@ -47,6 +52,8 @@ private val DarkPlusColorScheme = darkColorScheme(
 // Nota para el usuario: El modo "Oscuro+ (OLED)" usa negro puro para reducir el consumo de batería en pantallas OLED.
 
 val LocalOledDarkMode = staticCompositionLocalOf { false }
+// NUEVO: Almacena el tema seleccionado por el usuario (respeta la configuración de la app)
+val LocalAppDarkTheme = staticCompositionLocalOf { false }
 
 @Composable
 fun NotasInteligentesValdoTheme(
@@ -59,7 +66,16 @@ fun NotasInteligentesValdoTheme(
     val useDynamic = dynamicColor && !darkPlus && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {
         useDynamic -> {
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            // Usar colores dinámicos pero FORZAR los colores de texto
+            if (darkTheme) {
+                dynamicDarkColorScheme(context)
+            } else {
+                dynamicLightColorScheme(context).copy(
+                    onSurface = Color.Black,
+                    onBackground = Color.Black,
+                    onSurfaceVariant = Color.Black.copy(alpha = 0.75f)
+                )
+            }
         }
         darkTheme && darkPlus -> DarkPlusColorScheme
         darkTheme -> DarkColorScheme
@@ -95,7 +111,10 @@ fun NotasInteligentesValdoTheme(
         }
     }
 
-    CompositionLocalProvider(LocalOledDarkMode provides (darkTheme && darkPlus)) {
+    CompositionLocalProvider(
+        LocalOledDarkMode provides (darkTheme && darkPlus),
+        LocalAppDarkTheme provides darkTheme  // NUEVO: Proveer el tema del usuario
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,

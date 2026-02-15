@@ -371,7 +371,8 @@ fun AppNavigation(
                     }
                 },
                 onBack = { navController.popBackStack() },
-                viewModel = viewModel
+                viewModel = viewModel,
+                isVaultMode = true // NUEVO: Indica que debe usar categorías secretas
             )
         }
     }

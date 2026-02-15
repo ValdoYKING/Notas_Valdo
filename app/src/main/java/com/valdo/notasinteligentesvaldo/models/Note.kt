@@ -28,7 +28,8 @@ data class Note(
 data class Category(
     @PrimaryKey(autoGenerate = true) val categoryId: Int = 0,
     val name: String,
-    val emoji: String = "📝" // Emoji representativo de la categoría (por defecto 📝)
+    val emoji: String = "📝", // Emoji representativo de la categoría (por defecto 📝)
+    val isSecret: Boolean = false // NUEVO: indica si la categoría pertenece a la bóveda
 )
 
 @Entity(
