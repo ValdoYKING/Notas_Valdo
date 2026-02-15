@@ -5,9 +5,11 @@
         <!-- Color por defecto para iconos/vector drawables que usan ?attr/colorControlNormal -->
         <item name="colorControlNormal">@color/black</item>
 
-        <!-- Fondo/colores de system bars (arranque) -->
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- Fondo/colores de system bars (arranque)
+             Nota: no usar transparente aquí; en edge-to-edge puede verse negro/invisible.
+        -->
+        <item name="android:statusBarColor">?android:attr/colorBackground</item>
+        <item name="android:navigationBarColor">?android:attr/colorBackground</item>
 
         <!-- Íconos oscuros en barras (modo claro) -->
         <item name="android:windowLightStatusBar">true</item>
@@ -19,26 +21,23 @@
 
     <!--
       Tema para la actividad del cropper.
-      IMPORTANTE: el cropper usa una Activity AppCompat con toolbar/menú propios.
-      Si usamos NoActionBar, en algunos dispositivos termina viéndose “solo la imagen” (sin controles).
-      Por eso aquí usamos un tema DayNight CON ActionBar/Toolbar.
+      - Usa DayNight para adaptarse automáticamente al tema del sistema/app.
+      - Los colores se pasan dinámicamente desde CropImageOptions.
     -->
-    <style name="Theme_NotasInteligentesValdo_Cropper" parent="Theme.AppCompat.DayNight.DarkActionBar">
-        <!-- Toolbar clara + contenido oscuro -->
-        <item name="colorPrimary">@android:color/white</item>
-        <item name="colorPrimaryDark">@android:color/white</item>
-        <item name="colorAccent">@android:color/black</item>
+    <style name="Theme_NotasInteligentesValdo_Cropper" parent="Theme.AppCompat.DayNight">
+        <!-- Los colores se configurarán dinámicamente desde el código -->
+        <item name="windowActionBar">true</item>
+        <item name="windowNoTitle">false</item>
 
-        <!-- Texto/íconos de la ActionBar -->
-        <item name="android:textColorPrimary">@android:color/black</item>
-        <item name="android:textColorSecondary">@android:color/black</item>
-
-        <!-- Barra de estado visible: fondo claro + íconos oscuros -->
-        <item name="android:statusBarColor">@android:color/white</item>
+        <!-- Iconos oscuros en barras para modo claro -->
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
 
-        <!-- Fondo de la Activity (lo que se ve alrededor de la imagen) -->
-        <item name="android:windowBackground">@android:color/white</item>
+        <!-- Colores base para modo claro (se sobreescriben desde código) -->
+        <item name="colorPrimary">#FFFFFF</item>
+        <item name="android:textColorPrimary">#000000</item>
+        <item name="actionMenuTextColor">#000000</item>
+        <item name="colorControlNormal">#000000</item>
     </style>
 
 

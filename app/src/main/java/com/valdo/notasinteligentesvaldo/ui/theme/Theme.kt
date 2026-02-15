@@ -9,10 +9,11 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowInsetsControllerCompat
@@ -72,23 +73,23 @@ fun NotasInteligentesValdoTheme(
         val insetsController = WindowInsetsControllerCompat(window, window.decorView)
 
         SideEffect {
-            // Status bar icons
+            // Iconos: claros en oscuro, oscuros en claro
             insetsController.isAppearanceLightStatusBars = !darkTheme
-            // Navigation bar icons (para que no dependa de un toggle posterior)
             insetsController.isAppearanceLightNavigationBars = !darkTheme
 
-            // Colores transparentes cuando corresponde (edge-to-edge)
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                @Suppress("DEPRECATION")
-                window.statusBarColor = android.graphics.Color.TRANSPARENT
-                @Suppress("DEPRECATION")
-                window.navigationBarColor = android.graphics.Color.TRANSPARENT
-            }
+            // Colores de barras: usar el tono del tema para que siempre haya fondo
+            // (soluciona barras "invisibles" cuando la ventana dibuja edge-to-edge).
+            val barColor = colorScheme.background.toArgb()
+            @Suppress("DEPRECATION")
+            window.statusBarColor = barColor
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = barColor
 
-            // Configuración moderna para el comportamiento de system bars
+            // Comportamiento moderno para mostrar/ocultar system bars
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.insetsController?.let { controller ->
-                    controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.systemBarsBehavior =
+                        android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
             }
         }

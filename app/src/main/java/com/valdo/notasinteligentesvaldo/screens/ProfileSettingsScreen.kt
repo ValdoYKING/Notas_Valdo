@@ -10,6 +10,7 @@ import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -48,12 +49,27 @@ fun ProfileSettingsScreen(navController: NavController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Colores para el recortador (Activity AppCompat) derivados del tema actual.
-    // Esto asegura que en modo oscuro no se vea una pantalla blanca y que los iconos/botones tengan contraste.
+    // Leer la preferencia de tema de la app (igual que en MainActivity)
+    val themeMode by UiPrefs.themeModeFlow(context).collectAsState(initial = "system")
+    val isSystemDark = isSystemInDarkTheme()
+
+    // Determinar si el tema actual es oscuro según la preferencia de la app
+    val isDarkTheme = when (themeMode) {
+        "light" -> false
+        "dark" -> true
+        "dark_plus" -> true
+        else -> isSystemDark
+    }
+
     val colorScheme = MaterialTheme.colorScheme
+
+    // Colores dinámicos basados en el tema actual de MaterialTheme
+    // Usar los colores del colorScheme actual en lugar de valores fijos
     val cropperToolbarColor = colorScheme.surface.toArgb()
     val cropperToolbarContentColor = colorScheme.onSurface.toArgb()
     val cropperBackgroundColor = colorScheme.background.toArgb()
+
+
 
     val firstName by UiPrefs.firstNameFlow(context).collectAsState(initial = "")
     val lastName by UiPrefs.lastNameFlow(context).collectAsState(initial = "")
@@ -111,11 +127,20 @@ fun ProfileSettingsScreen(navController: NavController) {
                         activityTitle = "Editar foto",
                         // Toolbar con colores del tema actual
                         toolbarColor = cropperToolbarColor,
+                        toolbarTitleColor = cropperToolbarContentColor,
                         toolbarBackButtonColor = cropperToolbarContentColor,
+                        activityMenuIconColor = cropperToolbarContentColor,
                         // Botón de confirmar
                         cropMenuCropButtonTitle = "Listo",
-                        // Evita el blanco alrededor (fondo de la Activity de recorte)
-                        backgroundColor = cropperBackgroundColor
+                        // Fondo detrás de la imagen (evita franjas negras puras)
+                        backgroundColor = cropperBackgroundColor,
+                        // NUEVO: Fondo de la actividad completa (áreas superior/inferior)
+                        activityBackgroundColor = cropperBackgroundColor,
+                        // NUEVO: Mostrar la imagen completa sin recortes
+                        scaleType = com.canhub.cropper.CropImageView.ScaleType.FIT_CENTER,
+                        // Opcional: que la UI del cropper sea lo más limpia posible
+                        showCropOverlay = true,
+                        showProgressBar = true
                     )
                 )
             )
@@ -205,8 +230,10 @@ fun ProfileSettingsScreen(navController: NavController) {
     LaunchedEffect(datePickerState.selectedDateMillis) {
         val millis = datePickerState.selectedDateMillis
         if (millis != null) {
-            val localDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+            // Usar UTC para evitar problemas de zona horaria que causan que se reste un día
+            val localDate = Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate()
             birthDateState = localDate.format(formatter)
+            editedBirthDate = true // Marcar como editado cuando se selecciona del calendario
         }
     }
 
@@ -392,20 +419,14 @@ fun ProfileSettingsScreen(navController: NavController) {
 
             OutlinedTextField(
                 value = birthDateState,
-                onValueChange = { raw ->
-                    editedBirthDate = true
-                    val clean = raw.filter { it.isDigit() || it == '-' }.take(10)
-                    val auto = buildString {
-                        clean.forEachIndexed { i, c ->
-                            append(c)
-                            if ((i == 3 || i == 5) && i != clean.lastIndex) append('-')
-                        }
-                    }.take(10)
-                    birthDateState = auto
-                },
+                onValueChange = { }, // No se permite edición manual
+                label = { Text("Fecha de nacimiento") },
                 placeholder = { Text("YYYY-MM-DD") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                readOnly = true, // Campo de solo lectura
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showDatePicker = true }, // Abrir calendario al hacer clic
                 trailingIcon = {
                     IconButton(onClick = { showDatePicker = true }) {
                         Icon(Icons.Filled.DateRange, contentDescription = "Elegir fecha")
