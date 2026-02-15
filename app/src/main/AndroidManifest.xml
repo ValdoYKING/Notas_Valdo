@@ -8,6 +8,9 @@
     <!-- Permiso para usar la cámara (requerido al tomar foto de perfil) -->
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Permiso para autenticación biométrica (huella, reconocimiento facial) -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
     <!-- La cámara no es requisito para instalar la app -->
     <uses-feature
         android:name="android.hardware.camera"

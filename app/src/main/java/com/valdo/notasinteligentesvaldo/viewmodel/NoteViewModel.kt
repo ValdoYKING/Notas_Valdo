@@ -40,6 +40,16 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
     val notesWithCategories: StateFlow<List<NoteWithCategories>> =
         noteDao.getAllNotesWithCategories().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // NUEVO: Flujos para notas de la bóveda
+    val secretNotes: StateFlow<List<Note>> =
+        noteDao.getSecretNotes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val favoriteSecretNotes: StateFlow<List<Note>> =
+        noteDao.getFavoriteSecretNotes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val secretNotesWithCategories: StateFlow<List<NoteWithCategories>> =
+        noteDao.getSecretNotesWithCategories().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     // --- Nota actual (solo para pantallas que la usen explícitamente) ---
     private val _currentNote = MutableStateFlow<Note?>(null)
     val currentNote: StateFlow<Note?> = _currentNote.asStateFlow()

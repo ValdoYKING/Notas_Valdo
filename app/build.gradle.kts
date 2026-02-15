@@ -13,7 +13,7 @@ android {
         minSdk = 28
         targetSdk = 35  // Actualizado a la versión más reciente
         versionCode = 1
-        versionName = "1.0.2"
+        versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -89,4 +89,7 @@ dependencies {
 
     // Cropper (recorte visual de imágenes)
     implementation("com.vanniktech:android-image-cropper:4.6.0")
+
+    // Autenticación biométrica
+    implementation(libs.androidx.biometric)
 }

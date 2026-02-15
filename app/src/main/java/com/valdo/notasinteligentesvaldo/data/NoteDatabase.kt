@@ -10,7 +10,7 @@ import com.valdo.notasinteligentesvaldo.models.NoteCategoryCrossRef
 
 @Database(
     entities = [Note::class, Category::class, NoteCategoryCrossRef::class],
-    version = 6,  // Subimos a versión 6 para agregar columna isNotificationPersistent en notes
+    version = 7,  // Subimos a versión 7 para agregar columna isSecret en notes (bóveda)
     exportSchema = true
 )
 abstract class NoteDatabase : RoomDatabase() {
@@ -57,6 +57,12 @@ abstract class NoteDatabase : RoomDatabase() {
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE notes ADD COLUMN isNotificationPersistent INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        // NUEVO: migración 6 -> 7 para agregar columna isSecret a notes (bóveda)
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE notes ADD COLUMN isSecret INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

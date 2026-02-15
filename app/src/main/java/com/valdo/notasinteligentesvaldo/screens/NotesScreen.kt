@@ -159,6 +159,17 @@ fun NotesScreen(
                     },
                     icon = { Icon(Icons.Default.Menu, contentDescription = "Categorías") }
                 )
+                // NUEVO: Item Bóveda
+                NavigationDrawerItem(
+                    label = { Text("Bóveda") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        // Navegar a pantalla de autenticación de bóveda
+                        navController.navigate("vaultAuth")
+                    },
+                    icon = { Icon(Icons.Default.Lock, contentDescription = "Bóveda") }
+                )
                 HorizontalDivider()
                 // Item Ajustes
                 NavigationDrawerItem(

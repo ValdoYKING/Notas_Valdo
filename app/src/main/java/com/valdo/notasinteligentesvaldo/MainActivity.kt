@@ -6,7 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import com.valdo.notasinteligentesvaldo.data.DatabaseBuilder
@@ -36,8 +36,9 @@ import androidx.compose.foundation.isSystemInDarkTheme
  * - Inicializa el ViewModel de notas usando una fábrica personalizada.
  * - Configura el tema y la navegación principal de la app.
  * - Es el punto de entrada de la UI con Jetpack Compose.
+ * - Extiende FragmentActivity para soportar BiometricPrompt.
  */
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     // ViewModel de notas, creado usando la fábrica y la base de datos Room
     private val noteViewModel: NoteViewModel by viewModels {
         NoteViewModelFactory(DatabaseBuilder.getInstance(this).noteDao())

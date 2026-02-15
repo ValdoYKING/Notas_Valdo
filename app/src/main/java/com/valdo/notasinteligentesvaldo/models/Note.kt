@@ -19,7 +19,9 @@ data class Note(
     val isFavorite: Boolean = false,  // Favorito (default: false)
     val isMarkdownEnabled: Boolean = false,  // Si soporta Markdown (default: false)
     // NUEVO: indica si la notificación configurada para esta nota debe ser persistente
-    val isNotificationPersistent: Boolean = false
+    val isNotificationPersistent: Boolean = false,
+    // NUEVO: indica si la nota pertenece a la bóveda (default: false)
+    val isSecret: Boolean = false
 )
 
 @Entity(tableName = "categories")

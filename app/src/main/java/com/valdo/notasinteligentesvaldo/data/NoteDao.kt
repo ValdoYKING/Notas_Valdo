@@ -29,20 +29,27 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE id = :noteId")
     fun getNoteById(noteId: Int): Flow<Note?>
 
-    @Query("SELECT * FROM notes ORDER BY timestamp DESC")
+    @Query("SELECT * FROM notes WHERE isSecret = 0 ORDER BY timestamp DESC")
     fun getAllNotes(): Flow<List<Note>>
 
-    @Query("SELECT * FROM notes WHERE isFavorite = 1 ORDER BY timestamp DESC")
+    @Query("SELECT * FROM notes WHERE isFavorite = 1 AND isSecret = 0 ORDER BY timestamp DESC")
     fun getFavoriteNotes(): Flow<List<Note>>
 
-    @Query("SELECT * FROM notes WHERE location IS NOT NULL ORDER BY timestamp DESC")
+    @Query("SELECT * FROM notes WHERE location IS NOT NULL AND isSecret = 0 ORDER BY timestamp DESC")
     fun getNotesWithLocation(): Flow<List<Note>>
 
-    @Query("SELECT * FROM notes WHERE title LIKE :query OR content LIKE :query ORDER BY timestamp DESC")
+    @Query("SELECT * FROM notes WHERE (title LIKE :query OR content LIKE :query) AND isSecret = 0 ORDER BY timestamp DESC")
     suspend fun searchNotes(query: String): List<Note>
 
-    @Query("SELECT * FROM notes WHERE notificationTime IS NOT NULL AND notificationTime > 0")
+    @Query("SELECT * FROM notes WHERE notificationTime IS NOT NULL AND notificationTime > 0 AND isSecret = 0")
     suspend fun getNotesWithNotifications(): List<Note>
+
+    // NUEVO: Consultas específicas para la bóveda
+    @Query("SELECT * FROM notes WHERE isSecret = 1 ORDER BY timestamp DESC")
+    fun getSecretNotes(): Flow<List<Note>>
+
+    @Query("SELECT * FROM notes WHERE isFavorite = 1 AND isSecret = 1 ORDER BY timestamp DESC")
+    fun getFavoriteSecretNotes(): Flow<List<Note>>
 
     @Query("UPDATE notes SET isFavorite = NOT isFavorite WHERE id = :noteId")
     suspend fun toggleFavorite(noteId: Int)
@@ -79,8 +86,13 @@ interface NoteDao {
     fun getNoteWithCategories(noteId: Int): Flow<NoteWithCategories?>
 
     @Transaction
-    @Query("SELECT * FROM notes ORDER BY timestamp DESC")
+    @Query("SELECT * FROM notes WHERE isSecret = 0 ORDER BY timestamp DESC")
     fun getAllNotesWithCategories(): Flow<List<NoteWithCategories>>
+
+    // NUEVO: Obtener notas secretas con categorías
+    @Transaction
+    @Query("SELECT * FROM notes WHERE isSecret = 1 ORDER BY timestamp DESC")
+    fun getSecretNotesWithCategories(): Flow<List<NoteWithCategories>>
 
     @Transaction
     @RewriteQueriesToDropUnusedColumns

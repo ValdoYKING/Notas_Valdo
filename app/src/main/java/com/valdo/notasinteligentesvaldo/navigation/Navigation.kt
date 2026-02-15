@@ -25,6 +25,8 @@ import com.valdo.notasinteligentesvaldo.screens.SettingsScreen
 import com.valdo.notasinteligentesvaldo.screens.ProfileSettingsScreen
 import com.valdo.notasinteligentesvaldo.screens.ThemeSettingsScreen
 import com.valdo.notasinteligentesvaldo.screens.StartActionSettingsScreen
+import com.valdo.notasinteligentesvaldo.screens.VaultAuthScreen
+import com.valdo.notasinteligentesvaldo.screens.VaultScreen
 import kotlinx.coroutines.flow.firstOrNull
 
 // Define duraciones de animación
@@ -47,7 +49,12 @@ fun AppNavigation(
         "settings/profile",
         "settings/theme",
         "settings/start_action",
-        "viewer"
+        "viewer",
+        "vaultAuth",
+        "vault?filter=all",
+        "vault?filter=favorites",
+        "vault",
+        "addSecretNote"
     )
 
     // Si hay una nota pendiente de abrir desde notificación, priorizarla al arrancar
@@ -292,6 +299,80 @@ fun AppNavigation(
             exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
         ) {
             StartActionSettingsScreen(navController = navController)
+        }
+
+        // NUEVO: Pantalla de autenticación de la Bóveda
+        composable(
+            route = "vaultAuth",
+            enterTransition = { fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) },
+            exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
+        ) {
+            VaultAuthScreen(navController = navController)
+        }
+
+        // NUEVO: Pantalla de la Bóveda (notas secretas)
+        composable(
+            route = "vault?filter={filterType}",
+            arguments = listOf(navArgument("filterType") {
+                type = NavType.StringType
+                defaultValue = "all"
+                nullable = false
+            }),
+            enterTransition = { fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) },
+            exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
+        ) { backStackEntry ->
+            val filterType = backStackEntry.arguments?.getString("filterType") ?: "all"
+            VaultScreen(
+                viewModel = viewModel,
+                navController = navController,
+                filterType = filterType
+            )
+        }
+
+        // Ruta alternativa simplificada para la bóveda
+        composable(
+            route = "vault",
+            enterTransition = { fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) },
+            exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
+        ) {
+            VaultScreen(
+                viewModel = viewModel,
+                navController = navController,
+                filterType = "all"
+            )
+        }
+
+        // NUEVO: Agregar nota secreta
+        composable(
+            route = "addSecretNote",
+            enterTransition = {
+                slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Up,
+                    animationSpec = tween(NAV_ANIM_DURATION)
+                ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Down,
+                    animationSpec = tween(NAV_ANIM_DURATION)
+                ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+            }
+        ) {
+            NoteFormScreen(
+                onNoteSaved = { newNote, selectedCategories ->
+                    viewModel.viewModelScope.launch {
+                        // Crear nota con isSecret = true
+                        val secretNote = newNote.copy(isSecret = true)
+                        val noteId = viewModel.insertNoteAndGetId(secretNote).toInt()
+                        selectedCategories.forEach { catId ->
+                            viewModel.addCategoryToNote(noteId, catId)
+                        }
+                        navController.popBackStack()
+                    }
+                },
+                onBack = { navController.popBackStack() },
+                viewModel = viewModel
+            )
         }
     }
 }
