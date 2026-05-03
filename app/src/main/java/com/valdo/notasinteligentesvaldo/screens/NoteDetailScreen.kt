@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.valdo.notasinteligentesvaldo.models.Category
 import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
-import com.valdo.notasinteligentesvaldo.ui.theme.LocalAppDarkTheme
 import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.material3.RichText
 import kotlinx.coroutines.delay
@@ -120,6 +119,7 @@ fun NoteDetailScreen(
     var showEditCategoriesDialog by rememberSaveable(noteId) { mutableStateOf(false) }
     var showReminderDialog by rememberSaveable(noteId) { mutableStateOf(false) }
     var didNavigateBack by rememberSaveable(noteId) { mutableStateOf(false) }
+    var noteLoadTimedOut by rememberSaveable(noteId) { mutableStateOf(false) }
 
     // OBSERVAR SOLO ESTA NOTA POR ID, NO EL currentNote GLOBAL COMPARTIDO
     val currentNote by viewModel.getNoteById(noteId).collectAsState(initial = null)
@@ -138,21 +138,31 @@ fun NoteDetailScreen(
         viewModel.observeNoteWithCategories(noteId)
     }
 
-    // Manejo del teclado y foco - CORRECCIÓN IMPORTANTE
-    LaunchedEffect(isEditMode) {
-        if (isEditMode) {
-            // Sólo mostrar el teclado; el foco se decide en el siguiente efecto según título/contenido
-            keyboardController?.show()
-        } else {
-            keyboardController?.hide()
+    LaunchedEffect(noteId, currentNote) {
+        if (currentNote != null) {
+            noteLoadTimedOut = false
+            return@LaunchedEffect
         }
+        noteLoadTimedOut = false
+        delay(2500)
+        if (currentNote == null) noteLoadTimedOut = true
     }
 
     // --- Protección contra nota nula ---
     // Si la nota aún no está cargada, mostrar loader (no navegar atrás aquí)
     if (currentNote == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Center) {
-            CircularProgressIndicator()
+            if (!noteLoadTimedOut) {
+                CircularProgressIndicator()
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("No se pudo cargar la nota")
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(onClick = onBack) {
+                        Text("Volver")
+                    }
+                }
+            }
         }
         return
     }
@@ -213,15 +223,6 @@ fun NoteDetailScreen(
             contentValue = TextFieldValue(currentNote!!.content, TextRange(newSel))
         }
     }
-    // Al entrar en edición, forzar cursor al final o al inicio si vacío
-    LaunchedEffect(isEditMode) {
-        if (isEditMode) {
-            contentValue = contentValue.copy(selection = TextRange(contentValue.text.length))
-            // Asegurar que el cursor sea llevado a la vista (sobre el teclado)
-            delay(1)
-        }
-    }
-
     // NUEVO: Obtener las categorías de la nota
     val categories = noteWithCategoriesState?.categories ?: emptyList()
 
@@ -239,20 +240,19 @@ fun NoteDetailScreen(
         }
     }
 
-    // Ajustar foco al entrar en modo edición: priorizar título si está vacío
+    // Manejo unificado de foco + teclado para evitar saltos por efectos duplicados
     LaunchedEffect(isEditMode) {
         if (isEditMode) {
-            delay(300)
-            try {
+            contentValue = contentValue.copy(selection = TextRange(contentValue.text.length))
+            delay(120)
+            runCatching {
                 if (titleValue.text.isBlank()) {
                     titleFocusRequester.requestFocus()
                 } else {
                     focusRequester.requestFocus()
                 }
-                keyboardController?.show()
-            } catch (_: Exception) {
-                keyboardController?.show()
             }
+            keyboardController?.show()
         } else {
             keyboardController?.hide()
         }
@@ -509,13 +509,15 @@ fun NoteDetailScreen(
                 modifier = Modifier.statusBarsPadding()
             )
         },
-        contentWindowInsets = WindowInsets.safeDrawing,
+        // Evitar duplicar IME: el contenido maneja insets dinámicamente
+        contentWindowInsets = WindowInsets.systemBars,
         // Bottom bar eliminada para ganar espacio y evitar solapamientos con el IME
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .consumeWindowInsets(padding)
         ) {
             // Mostrar la fecha pequeña y suave en la parte superior del contenido
             Text(
@@ -574,7 +576,8 @@ fun NoteDetailScreen(
             if (isEditMode) {
                 // MODO EDICIÓN
                 val listState = rememberLazyListState()
-                val isDark = LocalAppDarkTheme.current  // Usar tema del usuario, no del sistema
+                val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+                val imeBottomDp = with(LocalDensity.current) { imeBottom.toDp() }
 
                 LazyColumn(
                     state = listState,
@@ -585,8 +588,8 @@ fun NoteDetailScreen(
                             viewportHeightPx = coords.size.height
                             contentBoxTopInRootPx = coords.positionInRoot().y
                         },
-                    // Un pequeño margen para que el final no quede pegado (sin sumar padding extra del IME)
-                    contentPadding = PaddingValues(bottom = 24.dp)
+                    // Espacio dinámico para IME + margen de respiro
+                    contentPadding = PaddingValues(bottom = imeBottomDp + 24.dp)
                 ) {
                     item {
                         BasicTextField(
@@ -598,16 +601,16 @@ fun NoteDetailScreen(
                                 .focusRequester(titleFocusRequester),
                             textStyle = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                color = if (isDark) Color.White else Color.Black
+                                color = MaterialTheme.colorScheme.onSurface
                             ),
-                            cursorBrush = SolidColor(if (isDark) Color.White else Color.Black),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
                             decorationBox = { inner ->
                                 Box {
                                     if (titleValue.text.isEmpty()) {
                                         Text(
                                             "Título (opcional)",
                                             style = MaterialTheme.typography.titleLarge.copy(
-                                                color = if (isDark) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.5f),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                                             )
                                         )
@@ -638,16 +641,16 @@ fun NoteDetailScreen(
                             }
 
                             if (preview) {
-                                RichText(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                    Markdown(contentValue.text)
-                                }
+                                ThemedMarkdown(
+                                    content = contentValue.text,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
                             } else {
                                 // Editor cuando NO está en preview
                                 NoteDetailContentEditor(
                                     contentValue = contentValue,
                                     onContentValueChange = { contentValue = it },
                                     focusRequester = focusRequester,
-                                    isDark = isDark,
                                     requestCenterCursor = { requestCenterCursor(listState) }
                                 )
                             }
@@ -659,7 +662,6 @@ fun NoteDetailScreen(
                                 contentValue = contentValue,
                                 onContentValueChange = { contentValue = it },
                                 focusRequester = focusRequester,
-                                isDark = isDark,
                                 // Ocupar el alto restante del LazyColumn para que se vea el contenido completo
                                 modifier = Modifier.fillParentMaxHeight(),
                                 requestCenterCursor = { requestCenterCursor(listState) }
@@ -671,7 +673,6 @@ fun NoteDetailScreen(
 
             // MODO LECTURA (fuera del if isEditMode)
             if (!isEditMode) {
-                val isDark = LocalAppDarkTheme.current  // Usar tema del usuario, no del sistema
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -685,7 +686,7 @@ fun NoteDetailScreen(
                         Text(
                             text = currentNote!!.title,
                             style = MaterialTheme.typography.headlineMedium.copy(
-                                color = if (isDark) Color.White else Color.Black,
+                                color = MaterialTheme.colorScheme.onBackground,
                                 fontWeight = FontWeight.Bold
                             ),
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -699,14 +700,17 @@ fun NoteDetailScreen(
                             style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        RichText(modifier = Modifier.fillMaxWidth()) { Markdown(currentNote!!.content) }
+                        ThemedMarkdown(
+                            content = currentNote!!.content,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     } else {
                         SelectionContainer {
                             Text(
                                 text = currentNote!!.content,
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     lineHeight = 28.sp,
-                                    color = if (isDark) Color.White else Color.Black
+                                    color = MaterialTheme.colorScheme.onBackground
                                 )
                             )
                         }
@@ -722,13 +726,13 @@ fun NoteDetailScreen(
                         Text(
                             text = "Creada: ${dateFormatter.format(Date(currentNote!!.timestampInit))}",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (isDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                         Text(
                             text = "Modificada: ${dateFormatter.format(Date(currentNote!!.timestamp))}",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (isDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                         if (currentNote!!.isMarkdownEnabled) {
@@ -1080,11 +1084,25 @@ private fun createPdfFile(context: Context, title: String, content: String): Fil
 }
 
 @Composable
+private fun ThemedMarkdown(
+    content: String,
+    modifier: Modifier = Modifier
+) {
+    val markdownColor = MaterialTheme.colorScheme.onSurface
+    CompositionLocalProvider(LocalContentColor provides markdownColor) {
+        ProvideTextStyle(MaterialTheme.typography.bodyLarge.copy(color = markdownColor)) {
+            RichText(modifier = modifier) {
+                Markdown(content)
+            }
+        }
+    }
+}
+
+@Composable
 private fun NoteDetailContentEditor(
     contentValue: TextFieldValue,
     onContentValueChange: (TextFieldValue) -> Unit,
     focusRequester: FocusRequester,
-    isDark: Boolean,
     modifier: Modifier = Modifier,
     requestCenterCursor: () -> Unit
 ) {
@@ -1108,18 +1126,18 @@ private fun NoteDetailContentEditor(
             textStyle = MaterialTheme.typography.bodyLarge.copy(
                 fontSize = 18.sp,
                 lineHeight = 28.sp,
-                color = if (isDark) Color.White else Color.Black
+                color = MaterialTheme.colorScheme.onSurface
             ),
             singleLine = false,
             minLines = 10,
             maxLines = Int.MAX_VALUE,
-            cursorBrush = SolidColor(if (isDark) Color.White else Color.Black),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
             decorationBox = { inner ->
                 if (contentValue.text.isEmpty()) {
                     Text(
                         "Comienza a escribir tu nota aquí...",
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            color = if (isDark) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.5f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             lineHeight = 28.sp,
                             fontSize = 18.sp
                         )

@@ -4,11 +4,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import com.valdo.notasinteligentesvaldo.ui.theme.LocalAppDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -21,6 +22,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import com.valdo.notasinteligentesvaldo.R
 import com.valdo.notasinteligentesvaldo.models.Note
@@ -48,6 +50,10 @@ import kotlinx.coroutines.delay
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.TextRange
+import androidx.activity.compose.BackHandler
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -55,10 +61,14 @@ fun NoteFormScreen(
     onNoteSaved: (Note, Set<Int>) -> Unit,
     onBack: () -> Unit,
     viewModel: NoteViewModel = viewModel(),
-    isVaultMode: Boolean = false // NUEVO: indica si es para la bóveda (usa categorías secretas)
+    isVaultMode: Boolean = false, // NUEVO: indica si es para la bóveda (usa categorías secretas)
+    defaultCategoryId: Int? = null
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
-    val isDark = LocalAppDarkTheme.current  // Usar tema del usuario, no del sistema
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     // Saver para persistir TextFieldValue (texto + selección) en rotación
     val textFieldValueSaver: Saver<TextFieldValue, List<Any>> = remember {
@@ -84,11 +94,17 @@ fun NoteFormScreen(
     } else {
         viewModel.allCategories.collectAsState()
     }
-    var selectedCategories by rememberSaveable { mutableStateOf(setOf<Int>()) }
+    var selectedCategories by rememberSaveable(defaultCategoryId) {
+        mutableStateOf(defaultCategoryId?.let { setOf(it) } ?: emptySet())
+    }
     var showAddCategoryDialog by rememberSaveable { mutableStateOf(false) }
     var newCategoryName by rememberSaveable { mutableStateOf("") }
     var showCategorySelector by rememberSaveable { mutableStateOf(false) }
     var categoryError by rememberSaveable { mutableStateOf("") }
+    var savedNoteId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var savedTimestampInit by rememberSaveable { mutableStateOf<Long?>(null) }
+    var lastSavedSignature by rememberSaveable { mutableStateOf<String?>(null) }
+    var skipAutoSave by rememberSaveable { mutableStateOf(false) }
 
     // IMPORTANTE: limpiar SOLO la primera vez que se entra a esta pantalla.
     // No debe ejecutarse en rotación (si no, borra el contenido).
@@ -115,6 +131,90 @@ fun NoteFormScreen(
         targetValue = if (title.isBlank()) 0.5f else 1f,
         animationSpec = tween(durationMillis = 300)
     )
+
+    fun currentSignature(): String {
+        val cats = selectedCategories.sorted().joinToString(",")
+        return listOf(
+            title.trim(),
+            content.trim(),
+            isMarkdownEnabled.toString(),
+            isVaultMode.toString(),
+            cats
+        ).joinToString("|")
+    }
+
+    fun shouldAutoSave(): Boolean = title.isNotBlank() || content.isNotBlank()
+
+    fun persistDraft(navigateBack: Boolean) {
+        if (skipAutoSave) {
+            if (navigateBack) onBack()
+            return
+        }
+        if (!shouldAutoSave()) {
+            if (navigateBack) onBack()
+            return
+        }
+        val signature = currentSignature()
+        if (savedNoteId != null && signature == lastSavedSignature) {
+            if (navigateBack) onBack()
+            return
+        }
+        scope.launch {
+            val now = System.currentTimeMillis()
+            if (savedNoteId == null) {
+                val newNote = Note(
+                    title = title.ifBlank { "Nota sin título" },
+                    content = content,
+                    timestamp = now,
+                    timestampInit = now,
+                    isMarkdownEnabled = isMarkdownEnabled,
+                    isSecret = isVaultMode
+                )
+                val newId = viewModel.insertNoteAndGetId(newNote).toInt()
+                savedNoteId = newId
+                savedTimestampInit = now
+                selectedCategories.forEach { catId ->
+                    viewModel.addCategoryToNote(newId, catId)
+                }
+            } else {
+                val id = savedNoteId!!
+                val initTs = savedTimestampInit ?: now
+                val updated = Note(
+                    id = id,
+                    title = title.ifBlank { "Nota sin título" },
+                    content = content,
+                    timestamp = now,
+                    timestampInit = initTs,
+                    isMarkdownEnabled = isMarkdownEnabled,
+                    isSecret = isVaultMode
+                )
+                viewModel.updateNote(updated)
+                viewModel.removeAllCategoriesFromNote(id)
+                selectedCategories.forEach { catId ->
+                    viewModel.addCategoryToNote(id, catId)
+                }
+            }
+            lastSavedSignature = signature
+            if (navigateBack) {
+                skipAutoSave = true
+                onBack()
+            }
+        }
+    }
+
+    BackHandler {
+        persistDraft(navigateBack = true)
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                persistDraft(navigateBack = false)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
 
     Scaffold(
@@ -165,13 +265,18 @@ fun NoteFormScreen(
                                 timestampInit = System.currentTimeMillis(),
                                 isMarkdownEnabled = isMarkdownEnabled
                             )
-                            onNoteSaved(noteToSave, selectedCategories)
-                            title = ""
-                            content = ""
-                            textFieldValue = TextFieldValue("")
-                            isMarkdownEnabled = false
-                            selectedCategories = emptySet()
-                            viewModel.clearCurrentNote()
+                            if (savedNoteId == null) {
+                                skipAutoSave = true
+                                onNoteSaved(noteToSave, selectedCategories)
+                                title = ""
+                                content = ""
+                                textFieldValue = TextFieldValue("")
+                                isMarkdownEnabled = false
+                                selectedCategories = emptySet()
+                                viewModel.clearCurrentNote()
+                            } else {
+                                persistDraft(navigateBack = true)
+                            }
                         },
                         enabled = content.isNotBlank() || title.isNotBlank()
                     ) {
@@ -207,13 +312,15 @@ fun NoteFormScreen(
                 windowInsets = WindowInsets.statusBars
             )
         },
-        // NUEVO: respetar los insets seguros del sistema
-        contentWindowInsets = WindowInsets.safeDrawing
+        // Evitar duplicar IME: el contenido maneja insets dinámicamente
+        contentWindowInsets = WindowInsets.systemBars
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .consumeWindowInsets(padding)
+                .windowInsetsPadding(WindowInsets.ime)
         ) {
             // Campo de título
             BasicTextField(
@@ -223,20 +330,18 @@ fun NoteFormScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 textStyle = MaterialTheme.typography.titleLarge.copy(
-                    color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface,
+                    color = onSurfaceColor,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
                 ),
-                cursorBrush = SolidColor(
-                    if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
-                ),
+                cursorBrush = SolidColor(onSurfaceColor),
                 decorationBox = { innerTextField ->
                     Box {
                         if (title.isEmpty()) {
                             Text(
                                 text = title.ifEmpty { "Añade un título..." },
                                 style = MaterialTheme.typography.titleLarge.copy(
-                                    color = if (isDark) Color(0xFFEFEFEF) else MaterialTheme.colorScheme.onSurface.copy(alpha = titleAlpha),
+                                    color = onSurfaceVariantColor.copy(alpha = titleAlpha),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 20.sp
                                 )
@@ -280,7 +385,10 @@ fun NoteFormScreen(
                 MarkdownEditor(
                     content,
                     onContentChange = { content = it },
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
                 )
             } else {
                 val scrollState = rememberScrollState()
@@ -291,6 +399,7 @@ fun NoteFormScreen(
                 Column(
                     modifier = Modifier
                         .weight(1f)
+                        .fillMaxWidth()
                         .verticalScroll(scrollState)
                         // Margen lateral como en detalle/edición
                         .padding(horizontal = 16.dp)
@@ -313,17 +422,17 @@ fun NoteFormScreen(
                             textStyle = MaterialTheme.typography.bodyLarge.copy(
                                 fontSize = 18.sp,
                                 lineHeight = 28.sp,
-                                color = if (isDark) Color.White else Color.Black
+                                color = onSurfaceColor
                             ),
                             singleLine = false,
                             maxLines = Int.MAX_VALUE,
-                            cursorBrush = SolidColor(if (isDark) Color.White else Color.Black),
+                            cursorBrush = SolidColor(onSurfaceColor),
                             decorationBox = { innerTextField ->
                                 if (textFieldValue.text.isEmpty()) {
                                     Text(
                                         "Comienza a escribir tu nota aquí...",
                                         style = MaterialTheme.typography.bodyLarge.copy(
-                                            color = if (isDark) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.5f)
+                                            color = onSurfaceVariantColor.copy(alpha = 0.7f)
                                         )
                                     )
                                 }
@@ -416,98 +525,112 @@ fun MarkdownEditor(
     modifier: Modifier = Modifier
 ) {
     var preview by remember { mutableStateOf(false) }
-    val isDark = LocalAppDarkTheme.current  // Usar tema del usuario, no del sistema
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
 
     // NUEVO: estados para seguir el cursor y evitar que el teclado lo tape
     val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+    val imeBottomDp = with(LocalDensity.current) { imeBottom.toDp() }
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     var cursorRect by remember { mutableStateOf<Rect?>(null) }
     var bringIntoViewTrigger by remember { mutableStateOf(0) }
-    val scrollState = rememberScrollState()
 
-    Column(
+    LazyColumn(
         modifier = modifier
-            .fillMaxSize()
-            .imePadding()
+            .fillMaxWidth(),
+        contentPadding = PaddingValues(bottom = imeBottomDp + 24.dp)
     ) {
-        // Barra de herramientas Markdown
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            IconButton(onClick = { onContentChange("$content **texto** ") }) {
-                Text("B", fontWeight = FontWeight.Bold)
-            }
-            IconButton(onClick = { onContentChange("$content *texto* ") }) {
-                Text("I", fontStyle = FontStyle.Italic)
-            }
-            IconButton(onClick = { onContentChange("$content [texto](url) ") }) {
-                Text("Link")
-            }
-            IconButton(onClick = { preview = !preview }) {
-                val previewIcon = if (preview) R.drawable.visibility_off_24px else R.drawable.visibility_24px
-                Icon(
-                    painter = painterResource(id = previewIcon),
-                    contentDescription = "Vista previa"
-                )
+        item {
+            // Barra de herramientas Markdown
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                IconButton(onClick = { onContentChange("$content **texto** ") }) {
+                    Text("B", fontWeight = FontWeight.Bold)
+                }
+                IconButton(onClick = { onContentChange("$content *texto* ") }) {
+                    Text("I", fontStyle = FontStyle.Italic)
+                }
+                IconButton(onClick = { onContentChange("$content [texto](url) ") }) {
+                    Text("Link")
+                }
+                IconButton(onClick = { preview = !preview }) {
+                    val previewIcon = if (preview) R.drawable.visibility_off_24px else R.drawable.visibility_24px
+                    Icon(
+                        painter = painterResource(id = previewIcon),
+                        contentDescription = "Vista previa"
+                    )
+                }
             }
         }
 
         if (preview) {
-            // Vista previa del Markdown
-            MarkdownPreview(content, modifier = Modifier.padding(horizontal = 16.dp))
-        } else {
-            // Editor de Markdown con desplazamiento y seguimiento del caret
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    // Margen lateral consistente
-                    .padding(horizontal = 16.dp, vertical = 16.dp)
-            ) {
-                BasicTextField(
-                    value = content,
-                    onValueChange = {
-                        onContentChange(it)
-                        bringIntoViewTrigger++
-                    },
+            item {
+                // Vista previa del Markdown (scroll principal del LazyColumn)
+                MarkdownPreview(
+                    content,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .bringIntoViewRequester(bringIntoViewRequester),
-                    textStyle = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp,
-                        color = if (isDark) Color.White else Color.Unspecified
-                    ),
-                    cursorBrush = SolidColor(if (isDark) Color.White else Color.Black),
-                    onTextLayout = { layout ->
-                        val end = content.length
-                        cursorRect = layout.getCursorRect(end)
-                    }
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
                 )
             }
-
-            // Desplazar para mantener visible el cursor por encima del teclado
-            LaunchedEffect(bringIntoViewTrigger, imeBottom) {
-                if (imeBottom > 0 && cursorRect != null) {
-                    delay(1)
-                    bringIntoViewRequester.bringIntoView(cursorRect!!)
+        } else {
+            item {
+                // Editor Markdown flexible (sin recuadro fijo)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                        .bringIntoViewRequester(bringIntoViewRequester)
+                ) {
+                    BasicTextField(
+                        value = content,
+                        onValueChange = {
+                            onContentChange(it)
+                            bringIntoViewTrigger++
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 96.dp),
+                        textStyle = TextStyle(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 16.sp,
+                            color = onSurfaceColor
+                        ),
+                        cursorBrush = SolidColor(onSurfaceColor),
+                        onTextLayout = { layout ->
+                            val end = content.length
+                            cursorRect = layout.getCursorRect(end)
+                        }
+                    )
                 }
             }
+        }
+    }
+
+    // Desplazar para mantener visible el cursor por encima del teclado
+    LaunchedEffect(bringIntoViewTrigger, imeBottom) {
+        if (imeBottom > 0 && cursorRect != null) {
+            delay(120)
+            bringIntoViewRequester.bringIntoView(cursorRect!!)
         }
     }
 }
 
 @Composable
 fun MarkdownPreview(content: String, modifier: Modifier = Modifier) {
-    RichText(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        RichMarkdown(content)
+    val markdownColor = MaterialTheme.colorScheme.onSurface
+    CompositionLocalProvider(LocalContentColor provides markdownColor) {
+        ProvideTextStyle(MaterialTheme.typography.bodyLarge.copy(color = markdownColor)) {
+            RichText(
+                modifier = modifier
+                    .padding(4.dp)
+            ) {
+                RichMarkdown(content)
+            }
+        }
     }
 }
 

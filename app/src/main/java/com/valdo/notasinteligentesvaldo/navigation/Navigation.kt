@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -40,16 +42,24 @@ fun AppNavigation(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    fun navigateSafe(route: String, builder: NavOptionsBuilder.() -> Unit = {}) {
+        navController.navigate(route) {
+            launchSingleTop = true
+            restoreState = true
+            builder()
+        }
+    }
+
     // NUEVO: conjunto de rutas seguras permitidas para restaurar
     val allowedRestoreRoutes = setOf(
         "notes?filter=all",
         "notes?filter=favorites",
         "addNote",
+        "addNote?defaultCategoryId=-1",
         "settings",
         "settings/profile",
         "settings/theme",
         "settings/start_action",
-        "viewer",
         "vaultAuth",
         "vault?filter=all",
         "vault?filter=favorites",
@@ -62,31 +72,30 @@ fun AppNavigation(
         val pendingId = viewModel.pendingNotificationNoteId.value
         if (pendingId != null && pendingId > 0) {
             android.util.Log.d("NAV_DEBUG", "Abriendo nota desde notificación pendiente: $pendingId")
-            navController.navigate("noteDetail/$pendingId?categoryId=-1") {
+            navigateSafe("noteDetail/$pendingId?categoryId=-1") {
                 popUpTo(navController.graph.startDestinationId) { inclusive = false }
-                launchSingleTop = true
             }
             viewModel.clearPendingNotificationNoteId()
             return@LaunchedEffect
         }
 
         val saved = UiPrefs.lastRouteFlow(context).first()
-        val safeSaved = if (!saved.isNullOrBlank() && saved in allowedRestoreRoutes) saved else null
+        val safeSaved = if (
+            !saved.isNullOrBlank() &&
+            (saved in allowedRestoreRoutes || saved.startsWith("addNote?defaultCategoryId="))
+        ) saved else null
 
         if (!safeSaved.isNullOrBlank() && safeSaved != "notes?filter=all") {
             android.util.Log.d("NAV_DEBUG", "Restaurando ruta guardada: $safeSaved")
-            navController.navigate(safeSaved) {
-                popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                launchSingleTop = true
+            navigateSafe(safeSaved) {
+                popUpTo(navController.graph.startDestinationId) { inclusive = false }
             }
         } else {
             val action = UiPrefs.startActionFlow(context).firstOrNull() ?: "notes"
             if (action == "quick_note") {
                 android.util.Log.d("NAV_DEBUG", "StartAction=quick_note -> navegando a addNote")
                 viewModel.clearCurrentNote()
-                navController.navigate("addNote") {
-                    launchSingleTop = true
-                }
+                navigateSafe("addNote")
             } else {
                 android.util.Log.d("NAV_DEBUG", "Sin ruta guardada válida, usando startDestination")
             }
@@ -107,8 +116,13 @@ fun AppNavigation(
                     val filter = entry.arguments?.getString("filterType") ?: "all"
                     "notes?filter=$filter"
                 }
+                pattern.startsWith("addNote") -> {
+                    val defaultCategoryId = entry.arguments?.getInt("defaultCategoryId") ?: -1
+                    "addNote?defaultCategoryId=$defaultCategoryId"
+                }
                 else -> pattern
             }
+            if (route == "viewer") return@collectLatest
             android.util.Log.d("NAV_DEBUG", "Ruta actual: $route")
             scope.launch { UiPrefs.setLastRoute(context, route) }
         }
@@ -117,22 +131,21 @@ fun AppNavigation(
     // NUEVO: Navegar al detalle cuando se importe una nota externamente
     LaunchedEffect(Unit) {
         viewModel.importedNoteId.collectLatest { id ->
-            navController.navigate("noteDetail/$id?categoryId=-1")
+            navigateSafe("noteDetail/$id?categoryId=-1")
         }
     }
     // NUEVO: Navegar al visor efímero cuando llegue un documento externo
     LaunchedEffect(Unit) {
         viewModel.openExternalViewer.collectLatest {
-            navController.navigate("viewer")
+            navigateSafe("viewer")
         }
     }
 
     // Navegar al detalle de nota cuando llega un evento desde notificación
     LaunchedEffect(Unit) {
         viewModel.openNoteFromNotification.collectLatest { id ->
-            navController.navigate("noteDetail/$id?categoryId=-1") {
+            navigateSafe("noteDetail/$id?categoryId=-1") {
                 popUpTo(navController.graph.startDestinationId) { inclusive = false }
-                launchSingleTop = true
             }
         }
     }
@@ -140,9 +153,8 @@ fun AppNavigation(
     // Navegar a la lista desde notificación genérica
     LaunchedEffect(Unit) {
         viewModel.openNotesListFromNotification.collectLatest {
-            navController.navigate("notes?filter=all") {
+            navigateSafe("notes?filter=all") {
                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                launchSingleTop = true
             }
         }
     }
@@ -171,23 +183,33 @@ fun AppNavigation(
                 viewModel = viewModel,
                 navController = navController,
                 filterType = filterType,
-                onAddNote = {
+                onAddNote = { defaultCategoryId ->
                     viewModel.clearCurrentNote() // Limpia la nota actual antes de crear una nueva
-                    navController.navigate("addNote")
+                    val cat = defaultCategoryId ?: -1
+                    navigateSafe("addNote?defaultCategoryId=$cat")
                 }
             )
         }
 
         // --- Pantalla de Añadir/Editar Nota (Formulario) ---
         composable(
-            route = "addNote",
+            route = "addNote?defaultCategoryId={defaultCategoryId}",
+            arguments = listOf(
+                navArgument("defaultCategoryId") {
+                    type = NavType.IntType
+                    defaultValue = -1
+                }
+            ),
             enterTransition = {
                 fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
             },
             exitTransition = {
                 fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
             }
-        ) {
+        ) { backStackEntry ->
+            val defaultCategoryId = backStackEntry.arguments
+                ?.getInt("defaultCategoryId")
+                ?.takeIf { it >= 0 }
             NoteFormScreen(
                 onNoteSaved = { newNote, selectedCategories ->
                     viewModel.viewModelScope.launch {
@@ -199,7 +221,8 @@ fun AppNavigation(
                     }
                 },
                 onBack = { navController.popBackStack() },
-                viewModel = viewModel
+                viewModel = viewModel,
+                defaultCategoryId = defaultCategoryId
             )
         }
 

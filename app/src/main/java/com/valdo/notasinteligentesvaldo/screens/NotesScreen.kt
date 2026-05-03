@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -44,6 +45,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.valdo.notasinteligentesvaldo.util.NoteActions
+import coil.compose.AsyncImage
+import com.valdo.notasinteligentesvaldo.ui.avatar.AvatarContainer
+import com.valdo.notasinteligentesvaldo.ui.avatar.avatarStyleFromId
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -51,12 +56,16 @@ fun NotesScreen(
     viewModel: NoteViewModel,
     navController: NavController,
     filterType: String,
-    onAddNote: () -> Unit
+    onAddNote: (Int?) -> Unit
 ) {
     // Estados de notas
     val allNotesState by viewModel.allNotes.collectAsState()
     val favoriteNotesState by viewModel.favoriteNotes.collectAsState()
     val allCategories by viewModel.allCategories.collectAsState()
+    val context = LocalContext.current
+    val firstName by UiPrefs.firstNameFlow(context).collectAsState(initial = "")
+    val profileUri by UiPrefs.profileImageUriFlow(context).collectAsState(initial = "")
+    val avatarStyleId by UiPrefs.avatarStyleFlow(context).collectAsState(initial = "circle")
 
     // Estado de carga
     var isLoading by remember { mutableStateOf(true) }
@@ -66,8 +75,6 @@ fun NotesScreen(
     // NUEVO: Estado para compartir
     var shareTarget by remember { mutableStateOf<Note?>(null) }
     val shareSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    val context = LocalContext.current
 
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -121,7 +128,7 @@ fun NotesScreen(
                 Spacer(Modifier.height(16.dp))
                 // Item Inicio
                 NavigationDrawerItem(
-                    label = { Text("Inicio") },
+                    label = { Text("Mis Notas") },
                     selected = currentFilter == "all",
                     onClick = {
                         scope.launch {
@@ -191,7 +198,7 @@ fun NotesScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             floatingActionButton = {
                 FloatingActionButton(
-                    onClick = onAddNote, // CAMBIO: Llama a onAddNote para limpiar el estado antes de navegar
+                    onClick = { onAddNote(selectedCategoryId) },
                     modifier = Modifier.defaultMinSize(minWidth = 150.dp, minHeight = 56.dp),
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
@@ -209,7 +216,17 @@ fun NotesScreen(
             },
             topBar = {
                 TopAppBar(
-                    title = { Text(if (filterType == "favorites") "Notas Favoritas" else "Mis Notas") },
+                    title = {
+                        val hour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
+                        val greeting = when {
+                            hour < 12 -> "Buenos días"
+                            hour < 19 -> "Buenas tardes"
+                            else -> "Buenas noches"
+                        }
+                        val displayName = firstName.trim()
+                        val titleText = if (displayName.isNotBlank()) "$greeting, $displayName" else greeting
+                        Text(titleText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    },
                     navigationIcon = {
                         IconButton(
                             onClick = { scope.launch { drawerState.open() } }
@@ -218,7 +235,23 @@ fun NotesScreen(
                         }
                     },
                     actions = {
-                        // (Eliminado) Botón de refrescar
+                        val avatarStyle = avatarStyleFromId(avatarStyleId)
+                        IconButton(onClick = { navController.navigate("settings/profile") }) {
+                            AvatarContainer(
+                                style = avatarStyle,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                if (profileUri.isNotBlank()) {
+                                    AsyncImage(
+                                        model = profileUri,
+                                        contentDescription = "Avatar",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Text("U", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
                     }
                 )
             }
@@ -313,7 +346,7 @@ fun NotesScreen(
                             )
                             EmptyNotesMessage(
                                 message = emptyMessage,
-                                onAddNoteClick = onAddNote,
+                                onAddNoteClick = { onAddNote(selectedCategoryId) },
                                 isFavorites = filterType == "favorites"
                             )
                         }

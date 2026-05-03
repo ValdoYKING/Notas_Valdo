@@ -8,6 +8,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -65,7 +67,15 @@ fun ExternalViewerScreen(
         }
     ) { padding ->
         if (doc == null) {
-            Box(Modifier.fillMaxSize().padding(padding)) {}
+            LaunchedEffect(Unit) { onBack() }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                Text("No hay documento para mostrar")
+            }
             return@Scaffold
         }
         Column(
@@ -76,14 +86,21 @@ fun ExternalViewerScreen(
                 .verticalScroll(scrollState)
         ) {
             if (doc!!.isMarkdown) {
-                RichText(modifier = Modifier.fillMaxWidth()) {
-                    Markdown(doc!!.content)
+                val markdownColor = MaterialTheme.colorScheme.onSurface
+                CompositionLocalProvider(LocalContentColor provides markdownColor) {
+                    ProvideTextStyle(MaterialTheme.typography.bodyLarge.copy(color = markdownColor)) {
+                        RichText(modifier = Modifier.fillMaxWidth()) {
+                            Markdown(doc!!.content)
+                        }
+                    }
                 }
             } else {
                 SelectionContainer {
                     Text(
                         text = doc!!.content,
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
                     )
                 }
             }
