@@ -35,21 +35,7 @@ private val LightColorScheme = lightColorScheme(
     onSurfaceVariant = Color.Black.copy(alpha = 0.75f)
 )
 
-// Esquema especial para "Oscuro+" (OLED) con surface negro puro y ahorro de energía en pantallas OLED.
-private val DarkPlusColorScheme = darkColorScheme(
-    primary = Purple80,
-    onPrimary = Color.Black, // Mayor contraste en negro puro
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
-    background = Color.Black, // Fondo totalmente negro para OLED
-    surface = Color.Black,    // Superficie negra para minimizar emisión de luz
-    surfaceVariant = Color.Black,
-    primaryContainer = Color.Black,
-    onBackground = Color.White,
-    onSurface = Color.White,
-    onSurfaceVariant = Color.White.copy(alpha = 0.85f)
-)
-// Nota para el usuario: El modo "Oscuro+ (OLED)" usa negro puro para reducir el consumo de batería en pantallas OLED.
+// Nota para el usuario: El modo "Oscuro+ (OLED)" usa negro puro para reducir el consumo de bateria en pantallas OLED.
 
 val LocalOledDarkMode = staticCompositionLocalOf { false }
 // NUEVO: Almacena el tema seleccionado por el usuario (respeta la configuración de la app)
@@ -60,26 +46,37 @@ fun NotasInteligentesValdoTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     darkPlus: Boolean = false,
     dynamicColor: Boolean = true,
+    oledDevice: Boolean = false,
+    autoOled: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val useDynamic = dynamicColor && !darkPlus && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val canUseDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val darkColors = if (canUseDynamic) {
+        dynamicDarkColorScheme(context)
+    } else {
+        DarkColorScheme
+    }
+    val oledColors = darkColors.copy(
+        background = Color.Black,
+        surface = Color.Black,
+        surfaceVariant = Color.Black,
+        primaryContainer = Color.Black
+    )
+    val lightColors = if (canUseDynamic) {
+        dynamicLightColorScheme(context).copy(
+            onSurface = Color.Black,
+            onBackground = Color.Black,
+            onSurfaceVariant = Color.Black.copy(alpha = 0.75f)
+        )
+    } else {
+        LightColorScheme
+    }
+    val useOled = darkTheme && (darkPlus || (autoOled && oledDevice))
     val colorScheme = when {
-        useDynamic -> {
-            // Usar colores dinámicos pero FORZAR los colores de texto
-            if (darkTheme) {
-                dynamicDarkColorScheme(context)
-            } else {
-                dynamicLightColorScheme(context).copy(
-                    onSurface = Color.Black,
-                    onBackground = Color.Black,
-                    onSurfaceVariant = Color.Black.copy(alpha = 0.75f)
-                )
-            }
-        }
-        darkTheme && darkPlus -> DarkPlusColorScheme
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        !darkTheme -> lightColors
+        useOled -> oledColors
+        else -> darkColors
     }
 
     val view = LocalView.current
@@ -112,7 +109,7 @@ fun NotasInteligentesValdoTheme(
     }
 
     CompositionLocalProvider(
-        LocalOledDarkMode provides (darkTheme && darkPlus),
+        LocalOledDarkMode provides useOled,
         LocalAppDarkTheme provides darkTheme  // NUEVO: Proveer el tema del usuario
     ) {
         MaterialTheme(
