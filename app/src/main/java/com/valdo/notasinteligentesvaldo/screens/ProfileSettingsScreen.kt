@@ -35,8 +35,8 @@ import com.valdo.notasinteligentesvaldo.data.UiPrefs
 import com.valdo.notasinteligentesvaldo.ui.avatar.AvatarContainer
 import com.valdo.notasinteligentesvaldo.ui.avatar.AvatarStyle
 import com.valdo.notasinteligentesvaldo.ui.avatar.avatarStyleFromId
-import com.canhub.cropper.CropImageContract
-import com.canhub.cropper.CropImageContractOptions
+import com.valdo.notasinteligentesvaldo.util.AppCropImageContract
+import com.valdo.notasinteligentesvaldo.util.AppCropImageContractOptions
 import com.canhub.cropper.CropImageOptions
 import java.io.File
 import java.io.FileOutputStream
@@ -132,7 +132,7 @@ fun ProfileSettingsScreen(navController: NavController) {
     }
 
     // 3) Recorte (retorna URI)
-    val cropImageLauncher = rememberLauncherForActivityResult(CropImageContract()) { result ->
+    val cropImageLauncher = rememberLauncherForActivityResult(AppCropImageContract()) { result ->
         val uri = result.uriContent
         if (uri != null) {
             persistProfileImage(uri)?.let { profileUri = it }
@@ -142,7 +142,7 @@ fun ProfileSettingsScreen(navController: NavController) {
     fun safeLaunchCrop(uri: Uri) {
         try {
             cropImageLauncher.launch(
-                CropImageContractOptions(
+                AppCropImageContractOptions(
                     uri,
                     CropImageOptions(
                         aspectRatioX = 1,
@@ -154,15 +154,15 @@ fun ProfileSettingsScreen(navController: NavController) {
                         toolbarTitleColor = cropperToolbarContentColor,
                         toolbarBackButtonColor = cropperToolbarContentColor,
                         activityMenuIconColor = cropperToolbarContentColor,
-                        // Botón de confirmar
+                        // Boton de confirmar
                         cropMenuCropButtonTitle = "Listo",
-                        // Fondo detrás de la imagen (evita franjas negras puras)
+                        // Fondo detras de la imagen (evita franjas negras puras)
                         backgroundColor = cropperBackgroundColor,
-                        // NUEVO: Fondo de la actividad completa (áreas superior/inferior)
+                        // NUEVO: Fondo de la actividad completa (areas superior/inferior)
                         activityBackgroundColor = cropperBackgroundColor,
                         // NUEVO: Mostrar la imagen completa sin recortes
                         scaleType = com.canhub.cropper.CropImageView.ScaleType.FIT_CENTER,
-                        // Opcional: que la UI del cropper sea lo más limpia posible
+                        // Opcional: que la UI del cropper sea lo mas limpia posible
                         showCropOverlay = true,
                         showProgressBar = true
                     )

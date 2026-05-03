@@ -35,6 +35,12 @@
             android:theme="@style/Theme_NotasInteligentesValdo_Cropper"
             tools:replace="android:exported,android:theme" />
 
+        <!-- Actividad propia del cropper para evitar la deprecacion -->
+        <activity
+            android:name=".cropper.AppCropImageActivity"
+            android:exported="false"
+            android:theme="@style/Theme_NotasInteligentesValdo_Cropper" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
