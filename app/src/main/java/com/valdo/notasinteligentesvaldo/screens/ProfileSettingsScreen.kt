@@ -38,6 +38,8 @@ import com.valdo.notasinteligentesvaldo.ui.avatar.avatarStyleFromId
 import com.canhub.cropper.CropImageContract
 import com.canhub.cropper.CropImageContractOptions
 import com.canhub.cropper.CropImageOptions
+import java.io.File
+import java.io.FileOutputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -94,16 +96,47 @@ fun ProfileSettingsScreen(navController: NavController) {
         if (!editedBirthDate && birthDate.isNotBlank()) birthDateState = birthDate
     }
     LaunchedEffect(profileUriString) {
-        if (profileUri == null && profileUriString.isNotBlank()) profileUri = Uri.parse(profileUriString)
+        if (profileUri == null && profileUriString.isNotBlank()) {
+            val parsed = Uri.parse(profileUriString)
+            val path = parsed.path
+            val exists = path != null && File(path).exists()
+            if (exists) {
+                profileUri = parsed
+            } else {
+                scope.launch { UiPrefs.setProfileImageUri(context, "") }
+            }
+        }
     }
     LaunchedEffect(avatarStyleId) {
         selectedStyle = avatarStyleFromId(avatarStyleId)
     }
 
+    fun persistProfileImage(sourceUri: Uri): Uri? {
+        return try {
+            val outFile = File(context.filesDir, "profile_image.jpg")
+            context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                FileOutputStream(outFile, false).use { output ->
+                    input.copyTo(output)
+                }
+            } ?: return null
+            Uri.fromFile(outFile)
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    fun deleteProfileImageFile() {
+        runCatching {
+            File(context.filesDir, "profile_image.jpg").delete()
+        }
+    }
+
     // 3) Recorte (retorna URI)
     val cropImageLauncher = rememberLauncherForActivityResult(CropImageContract()) { result ->
         val uri = result.uriContent
-        if (uri != null) profileUri = uri
+        if (uri != null) {
+            persistProfileImage(uri)?.let { profileUri = it }
+        }
     }
 
     fun safeLaunchCrop(uri: Uri) {
@@ -255,7 +288,9 @@ fun ProfileSettingsScreen(navController: NavController) {
             confirmButton = {
                 TextButton(
                     onClick = {
+                        deleteProfileImageFile()
                         profileUri = null
+                        scope.launch { UiPrefs.setProfileImageUri(context, "") }
                         showDeleteConfirm = false
                     }
                 ) { Text("Eliminar") }
