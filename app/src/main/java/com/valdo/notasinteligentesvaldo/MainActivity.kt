@@ -1,14 +1,16 @@
 package com.valdo.notasinteligentesvaldo
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.fragment.app.FragmentActivity
 import com.valdo.notasinteligentesvaldo.data.DatabaseBuilder
 import com.valdo.notasinteligentesvaldo.navigation.AppNavigation
 import com.valdo.notasinteligentesvaldo.ui.theme.NotasInteligentesValdoTheme
@@ -21,12 +23,14 @@ import java.io.InputStreamReader
 import androidx.core.content.IntentCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import androidx.profileinstaller.ProfileInstaller
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.valdo.notasinteligentesvaldo.data.UiPrefs
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.isSystemInDarkTheme
 
@@ -41,30 +45,26 @@ import androidx.compose.foundation.isSystemInDarkTheme
 class MainActivity : FragmentActivity() {
     // ViewModel de notas, creado usando la fábrica y la base de datos Room
     private val noteViewModel: NoteViewModel by viewModels {
-        NoteViewModelFactory(DatabaseBuilder.getInstance(this).noteDao())
+        NoteViewModelFactory(DatabaseBuilder.getInstance(applicationContext).noteDao())
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Instalar SplashScreen nativo (debe ir al inicio de onCreate)
         val splash = installSplashScreen()
-        // Animación de salida: desvanecer y reducir el icono, protegiendo contra posibles NPE
         splash.setOnExitAnimationListener { provider ->
-            try {
-                val iconView = provider.iconView
-                iconView.animate()
-                    .alpha(0f)
-                    .scaleX(0.8f)
-                    .scaleY(0.8f)
-                    .setDuration(250L)
-                    .withEndAction { provider.remove() }
-                    .start()
-            } catch (_: Throwable) {
-                // En caso de cualquier NPE interno, asegurarse de retirar el splash sin crashear
-                provider.remove()
-            }
+            val iconView = provider.iconView
+            iconView.animate()
+                .alpha(0f)
+                .scaleX(1.08f)
+                .scaleY(1.08f)
+                .translationY(-iconView.height * 0.08f)
+                .setDuration(320L)
+                .withEndAction { provider.remove() }
+                .start()
         }
 
         super.onCreate(savedInstanceState)
+        ProfileInstaller.writeProfile(this)
 
         // NUEVO: solicitar permiso de notificaciones en Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -83,13 +83,16 @@ class MainActivity : FragmentActivity() {
             val themeMode by UiPrefs.themeModeFlow(ctx).collectAsState(initial = "system")
 
             val isSystemDark = isSystemInDarkTheme()
+            val systemUsesOledDark = remember(ctx, isSystemDark) {
+                isSystemDark && systemPrefersOledDark(ctx)
+            }
             val darkTheme = when (themeMode) {
                 "light" -> false
                 "dark" -> true
                 "dark_plus" -> true
                 else -> isSystemDark
             }
-            val darkPlus = themeMode == "dark_plus"
+            val darkPlus = themeMode == "dark_plus" || (themeMode == "system" && systemUsesOledDark)
 
             // Aplica el tema personalizado de la app (respetando la preferencia)
             NotasInteligentesValdoTheme(darkTheme = darkTheme, darkPlus = darkPlus) {
@@ -231,5 +234,11 @@ class MainActivity : FragmentActivity() {
             Regex("```[a-zA-Z0-9_-]*")
         )
         return mdPatterns.any { it.containsMatchIn(text) }
+    }
+
+    private fun systemPrefersOledDark(context: Context): Boolean {
+        val uiMode = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        return uiMode == Configuration.UI_MODE_NIGHT_YES &&
+            context.resources.configuration.isScreenWideColorGamut
     }
 }

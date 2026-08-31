@@ -2,15 +2,14 @@ package com.valdo.notasinteligentesvaldo.screens
 
 import android.Manifest
 import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.foundation.clickable
-import com.valdo.notasinteligentesvaldo.ui.theme.LocalAppDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -31,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.valdo.notasinteligentesvaldo.data.UiPrefs
 import com.valdo.notasinteligentesvaldo.ui.avatar.AvatarContainer
 import com.valdo.notasinteligentesvaldo.ui.avatar.AvatarStyle
@@ -50,9 +50,6 @@ import kotlinx.coroutines.launch
 fun ProfileSettingsScreen(navController: NavController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-
-    // Usar el tema de la app (igual que el resto de pantallas)
-    val isDarkTheme = LocalAppDarkTheme.current
 
     val colorScheme = MaterialTheme.colorScheme
 
@@ -96,8 +93,8 @@ fun ProfileSettingsScreen(navController: NavController) {
         if (!editedBirthDate && birthDate.isNotBlank()) birthDateState = birthDate
     }
     LaunchedEffect(profileUriString) {
-        if (profileUri == null && profileUriString.isNotBlank()) {
-            val parsed = Uri.parse(profileUriString)
+        if (profileUriString.isNotBlank()) {
+            val parsed = Uri.parse(profileUriString.substringBefore('#'))
             val path = parsed.path
             val exists = path != null && File(path).exists()
             if (exists) {
@@ -135,7 +132,12 @@ fun ProfileSettingsScreen(navController: NavController) {
     val cropImageLauncher = rememberLauncherForActivityResult(AppCropImageContract()) { result ->
         val uri = result.uriContent
         if (uri != null) {
-            persistProfileImage(uri)?.let { profileUri = it }
+            persistProfileImage(uri)?.let { savedUri ->
+                profileUri = savedUri
+                scope.launch {
+                    UiPrefs.setProfileImageUri(context, "${savedUri}#${System.currentTimeMillis()}")
+                }
+            }
         }
     }
 
@@ -222,14 +224,9 @@ fun ProfileSettingsScreen(navController: NavController) {
         }
     }
 
-    // 1) Selección desde galería (SAF)
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    // 1) Selección desde galería del sistema (Photo Picker)
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
-            try {
-                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (_: SecurityException) {
-                // Algunas URIs no permiten permiso persistente; igual intentamos recortar.
-            }
             safeLaunchCrop(uri)
         }
     }
@@ -270,7 +267,11 @@ fun ProfileSettingsScreen(navController: NavController) {
             title = { Text("Foto de perfil") },
             text = {
                 AsyncImage(
-                    model = profileUri,
+                    model = ImageRequest.Builder(context)
+                        .data(profileUri)
+                        .memoryCacheKey(profileUriString)
+                        .diskCacheKey(profileUriString)
+                        .build(),
                     contentDescription = "Foto de perfil",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -331,9 +332,12 @@ fun ProfileSettingsScreen(navController: NavController) {
                 ListItem(
                     headlineContent = { Text("Seleccionar foto de perfil") },
                     leadingContent = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
+                    supportingContent = { Text("Abrir galería") },
                     modifier = Modifier.clickable {
                         showAvatarSheet = false
-                        imagePicker.launch(arrayOf("image/*"))
+                        imagePicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
                     }
                 )
 
@@ -417,7 +421,11 @@ fun ProfileSettingsScreen(navController: NavController) {
             ) {
                 if (profileUri != null) {
                     AsyncImage(
-                        model = profileUri,
+                        model = ImageRequest.Builder(context)
+                            .data(profileUri)
+                            .memoryCacheKey(profileUriString)
+                            .diskCacheKey(profileUriString)
+                            .build(),
                         contentDescription = "Imagen de perfil",
                         modifier = Modifier.fillMaxSize()
                     )
