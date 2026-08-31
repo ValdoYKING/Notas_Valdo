@@ -203,13 +203,13 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
      * Programa una notificación para una nota.
      * Se usa firstOrNull() para evitar colecciones infinitas.
      */
-    fun scheduleNotification(noteId: Int, timeInMinutes: Long) {
+    fun scheduleNotification(noteId: Int, triggerAtMillis: Long) {
         viewModelScope.launch {
             val note = noteDao.getNoteById(noteId).firstOrNull()
             note?.let {
                 noteDao.update(
                     it.copy(
-                        notificationTime = timeInMinutes,
+                        notificationTime = triggerAtMillis,
                         timestamp = System.currentTimeMillis()
                     )
                 )
@@ -218,12 +218,13 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
     }
 
     fun scheduleQuickReminder(noteId: Int, minutesFromNow: Long, isPersistent: Boolean) {
+        val triggerAtMillis = System.currentTimeMillis() + (minutesFromNow.coerceAtLeast(0L) * 60_000L)
         viewModelScope.launch {
             val note = noteDao.getNoteById(noteId).firstOrNull()
             note?.let {
                 noteDao.update(
                     it.copy(
-                        notificationTime = minutesFromNow,
+                        notificationTime = triggerAtMillis,
                         isNotificationPersistent = isPersistent,
                         timestamp = System.currentTimeMillis()
                     )
