@@ -3,9 +3,13 @@ package com.valdo.notasinteligentesvaldo.screens
 import android.content.res.Configuration
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
@@ -40,6 +44,7 @@ import kotlin.math.min
 // Agrego FlowRow y anotación experimental
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ModalBottomSheet
@@ -78,6 +83,10 @@ fun NotesScreen(
 
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // NUEVO: Estado para selección múltiple (Contextual Top Action Bar)
+    var selectedNoteIds by remember { mutableStateOf(setOf<Int>()) }
+    val isSelectionMode = selectedNoteIds.isNotEmpty()
 
     // Helper para navegar a detalle con launchSingleTop y evitar múltiples instancias
     fun navigateToNoteDetail(noteId: Int, categoryId: Int?) {
@@ -121,11 +130,84 @@ fun NotesScreen(
         }
     }
 
+    val gridState = rememberLazyStaggeredGridState()
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet {
-                Spacer(Modifier.height(16.dp))
+            ModalDrawerSheet(
+                drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
+            ) {
+                // Header del Menú
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val avatarStyle = avatarStyleFromId(avatarStyleId)
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                        ) {
+                            AvatarContainer(
+                                style = avatarStyle,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                if (profileUri.isNotBlank()) {
+                                    AsyncImage(
+                                        model = profileUri,
+                                        contentDescription = "Avatar",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Text("U", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = "Notas Inteligentes",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            val displayName = firstName.trim()
+                            val subtitleText = if (displayName.isNotBlank()) displayName else "Organiza tu día"
+                            Text(
+                                text = subtitleText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                Spacer(Modifier.height(12.dp))
+
+                // Sección Organización
+                Text(
+                    text = "ORGANIZACIÓN",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
+                )
+
+                val itemColors = NavigationDrawerItemDefaults.colors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val itemModifier = Modifier
+                    .padding(NavigationDrawerItemDefaults.ItemPadding)
+                    .padding(horizontal = 12.dp)
+
                 // Item Inicio
                 NavigationDrawerItem(
                     label = { Text("Mis Notas") },
@@ -139,7 +221,9 @@ fun NotesScreen(
                             navController.navigate("notes?filter=all")
                         }
                     },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") }
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") },
+                    colors = itemColors,
+                    modifier = itemModifier
                 )
                 // Item Favoritas
                 NavigationDrawerItem(
@@ -154,7 +238,9 @@ fun NotesScreen(
                             navController.navigate("notes?filter=favorites")
                         }
                     },
-                    icon = { Icon(Icons.Default.Favorite, contentDescription = "Favoritas") }
+                    icon = { Icon(Icons.Default.Favorite, contentDescription = "Favoritas") },
+                    colors = itemColors,
+                    modifier = itemModifier
                 )
                 // Item Categorías
                 NavigationDrawerItem(
@@ -164,30 +250,46 @@ fun NotesScreen(
                         showCategoryManager = true
                         scope.launch { drawerState.close() }
                     },
-                    icon = { Icon(Icons.Default.Menu, contentDescription = "Categorías") }
+                    icon = { Icon(Icons.Default.Menu, contentDescription = "Categorías") },
+                    colors = itemColors,
+                    modifier = itemModifier
                 )
-                // NUEVO: Item Bóveda
+                // Item Bóveda
                 NavigationDrawerItem(
                     label = { Text("Bóveda") },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
-                        // Navegar a pantalla de autenticación de bóveda
                         navController.navigate("vaultAuth")
                     },
-                    icon = { Icon(Icons.Default.Lock, contentDescription = "Bóveda") }
+                    icon = { Icon(Icons.Default.Lock, contentDescription = "Bóveda") },
+                    colors = itemColors,
+                    modifier = itemModifier
                 )
-                HorizontalDivider()
+
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                Spacer(Modifier.height(8.dp))
+
+                // Sección Sistema
+                Text(
+                    text = "SISTEMA",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
+                )
+
                 // Item Ajustes
                 NavigationDrawerItem(
                     label = { Text("Ajustes") },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
-                        // Navegar a pantalla de ajustes
                         navController.navigate("settings")
                     },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") }
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") },
+                    colors = itemColors,
+                    modifier = itemModifier
                 )
             }
         }
@@ -197,63 +299,132 @@ fun NotesScreen(
             contentColor = MaterialTheme.colorScheme.onBackground,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             floatingActionButton = {
-                FloatingActionButton(
-                    onClick = { onAddNote(selectedCategoryId) },
-                    modifier = Modifier.defaultMinSize(minWidth = 150.dp, minHeight = 56.dp),
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                val isScrollingDown = remember {
+                    derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 40 }
+                }.value
+
+                if (!isScrollingDown) {
+                    ExtendedFloatingActionButton(
+                        onClick = { onAddNote(selectedCategoryId) },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                        text = { Text("Nueva nota") }
+                    )
+                } else {
+                    SmallFloatingActionButton(
+                        onClick = { onAddNote(selectedCategoryId) },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = ShapeDefaults.Medium
                     ) {
-                        Text(
-                            text = "Nueva nota :)",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
+                        Icon(Icons.Default.Add, contentDescription = "Nueva nota")
                     }
                 }
             },
             topBar = {
-                TopAppBar(
-                    title = {
-                        val hour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
-                        val greeting = when {
-                            hour < 12 -> "Buenos días"
-                            hour < 19 -> "Buenas tardes"
-                            else -> "Buenas noches"
+                if (isSelectionMode) {
+                    TopAppBar(
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ),
+                        title = { Text("${selectedNoteIds.size} seleccionada(s)") },
+                        navigationIcon = {
+                            IconButton(onClick = { selectedNoteIds = emptySet() }) {
+                                Icon(Icons.Default.Close, contentDescription = "Cancelar selección")
+                            }
+                        },
+                        actions = {
+                            // Copiar
+                            IconButton(onClick = {
+                                val contentToCopy = filteredNotes.filter { selectedNoteIds.contains(it.id) }.joinToString("\n\n") { "${it.title}\n${it.content}" }
+                                NoteActions.copyToClipboard(context, contentToCopy)
+                                scope.launch { snackbarHostState.showSnackbar("Notas copiadas al portapapeles") }
+                                selectedNoteIds = emptySet()
+                            }) {
+                                Icon(painter = painterResource(id = R.drawable.copy_24), contentDescription = "Copiar")
+                            }
+                            // Compartir
+                            IconButton(onClick = {
+                                val contentToShare = filteredNotes.filter { selectedNoteIds.contains(it.id) }.joinToString("\n\n") { "${it.title}\n${it.content}" }
+                                NoteActions.shareNoteContent(context, "Notas seleccionadas", contentToShare)
+                                selectedNoteIds = emptySet()
+                            }) {
+                                Icon(Icons.Default.Share, contentDescription = "Compartir")
+                            }
+                            // Eliminar
+                            IconButton(onClick = {
+                                scope.launch {
+                                    filteredNotes.filter { selectedNoteIds.contains(it.id) }.forEach { note ->
+                                        viewModel.deleteNote(note)
+                                    }
+                                    snackbarHostState.showSnackbar("Notas eliminadas")
+                                    selectedNoteIds = emptySet()
+                                }
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                            }
                         }
-                        val displayName = firstName.trim()
-                        val titleText = if (displayName.isNotBlank()) "$greeting, $displayName" else greeting
-                        Text(titleText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    },
-                    navigationIcon = {
-                        IconButton(
-                            onClick = { scope.launch { drawerState.open() } }
-                        ) {
-                            Icon(Icons.Default.Menu, contentDescription = "Abrir menú")
-                        }
-                    },
-                    actions = {
-                        val avatarStyle = avatarStyleFromId(avatarStyleId)
-                        IconButton(onClick = { navController.navigate("settings/profile") }) {
-                            AvatarContainer(
-                                style = avatarStyle,
-                                modifier = Modifier.size(36.dp)
+                    )
+                } else {
+                    TopAppBar(
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+                        ),
+                        title = {
+                            val hour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
+                            val greeting = when {
+                                hour < 12 -> "Buenos días"
+                                hour < 19 -> "Buenas tardes"
+                                else -> "Buenas noches"
+                            }
+                            val displayName = firstName.trim()
+                            val titleText = if (displayName.isNotBlank()) "$greeting, $displayName" else greeting
+                            Column {
+                                Text(titleText, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    text = "${filteredNotes.size} notas pendientes · Organiza tu día",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(
+                                onClick = { scope.launch { drawerState.open() } }
                             ) {
-                                if (profileUri.isNotBlank()) {
-                                    AsyncImage(
-                                        model = profileUri,
-                                        contentDescription = "Avatar",
+                                Icon(Icons.Default.Menu, contentDescription = "Abrir menú")
+                            }
+                        },
+                        actions = {
+                            val avatarStyle = avatarStyleFromId(avatarStyleId)
+                            IconButton(onClick = { navController.navigate("settings/profile") }) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                ) {
+                                    AvatarContainer(
+                                        style = avatarStyle,
                                         modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
-                                    Text("U", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    ) {
+                                        if (profileUri.isNotBlank()) {
+                                            AsyncImage(
+                                                model = profileUri,
+                                                contentDescription = "Avatar",
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            Text("U", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
-                )
+                    )
+                }
             }
         ) { padding ->
             Column(
@@ -261,14 +432,14 @@ fun NotesScreen(
                     .padding(padding)
                     .fillMaxSize()
             ) {
-                // Barra de categorías: siempre una sola fila desplazable (portrait y landscape)
+                // Barra de categorías con surfaceContainer y botón [+] al final
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
-                        // Un poco más arriba: menos padding vertical y menos top
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     AssistChip(
                         onClick = {
@@ -289,7 +460,7 @@ fun NotesScreen(
                             )
                         },
                         colors = AssistChipDefaults.assistChipColors(
-                            containerColor = if (selectedCategoryId == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                            containerColor = if (selectedCategoryId == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
                             labelColor = if (selectedCategoryId == null) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                         )
                     )
@@ -301,11 +472,20 @@ fun NotesScreen(
                             },
                             label = { Text(category.emoji + " " + category.name) },
                             colors = AssistChipDefaults.assistChipColors(
-                                containerColor = if (selectedCategoryId == category.categoryId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                containerColor = if (selectedCategoryId == category.categoryId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
                                 labelColor = if (selectedCategoryId == category.categoryId) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                             )
                         )
                     }
+                    // Chip [+] para agregar categoría
+                    AssistChip(
+                        onClick = { showCategoryManager = true },
+                        label = { Text("+") },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            labelColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
                 }
 
                 Box(
@@ -315,7 +495,6 @@ fun NotesScreen(
                     when {
                         isLoading -> {
                             Log.d("NOTES_DEBUG", "Mostrando loader en NotesScreen")
-                            // Indicador de carga inicial
                             Column(
                                 modifier = Modifier.align(Alignment.Center),
                                 horizontalAlignment = Alignment.CenterHorizontally
@@ -333,7 +512,6 @@ fun NotesScreen(
                                 )
                             }
                         }
-                        // Cambiado: usar filteredNotes para detectar vacío con filtro activo
                         filteredNotes.isEmpty() -> {
                             val emptyMessage = when {
                                 filterType == "favorites" -> "Aún no tienes notas favoritas."
@@ -370,6 +548,23 @@ fun NotesScreen(
                                 onShareFromCard = { note ->
                                     shareTarget = note
                                     scope.launch { shareSheetState.show() }
+                                },
+                                gridState = gridState,
+                                selectedNoteIds = selectedNoteIds,
+                                isSelectionMode = isSelectionMode,
+                                onSelectToggle = { note ->
+                                    selectedNoteIds = if (selectedNoteIds.contains(note.id)) {
+                                        selectedNoteIds - note.id
+                                    } else {
+                                        selectedNoteIds + note.id
+                                    }
+                                },
+                                onLongPress = { note ->
+                                    selectedNoteIds = if (selectedNoteIds.contains(note.id)) {
+                                        selectedNoteIds - note.id
+                                    } else {
+                                        selectedNoteIds + note.id
+                                    }
                                 }
                             )
                         }
@@ -436,13 +631,17 @@ fun NotesGrid(
     prefetchDistance: Int = 10,
     viewModel: NoteViewModel,
     snackbarHostState: SnackbarHostState,
-    onShareFromCard: (Note) -> Unit
+    onShareFromCard: (Note) -> Unit,
+    gridState: LazyStaggeredGridState,
+    selectedNoteIds: Set<Int>,
+    isSelectionMode: Boolean,
+    onSelectToggle: (Note) -> Unit,
+    onLongPress: (Note) -> Unit
 ) {
     val configuration = LocalConfiguration.current
     val columns = if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 3 else 2
 
-    // Estado del grid y conteo de items a mostrar (paginación local)
-    val gridState = rememberLazyStaggeredGridState()
+    // Conteo de items a mostrar (paginación local)
     var itemsToShow by remember(notes) { mutableStateOf(min(pageSize, notes.size)) }
 
     // Calcular si debemos cargar más cuando el usuario se acerca al final de lo ya mostrado
@@ -479,7 +678,6 @@ fun NotesGrid(
                 onNoteClick = onNoteClick,
                 onDoubleTapFavorite = { n ->
                     viewModel.toggleFavorite(n.id)
-                    // Mostrar snackbar de confirmación
                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                         snackbarHostState.showSnackbar("Nota marcada como favorita")
                     }
@@ -490,7 +688,11 @@ fun NotesGrid(
                         snackbarHostState.showSnackbar(msg)
                     }
                 },
-                onShareRequest = { n -> onShareFromCard(n) }
+                onShareRequest = { n -> onShareFromCard(n) },
+                isSelected = selectedNoteIds.contains(note.id),
+                isSelectionMode = isSelectionMode,
+                onSelectToggle = onSelectToggle,
+                onLongPress = onLongPress
             )
         }
     }
@@ -501,25 +703,60 @@ private fun EmptyNotesMessage(message: String, onAddNoteClick: () -> Unit, isFav
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
             val iconRes = if (isFavorites) R.drawable.sentiment_sad_24px else R.drawable.add_notes_24px
-            Icon(
-                painter = painterResource(id = iconRes),
-                contentDescription = null,
+            Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clickable { if (!isFavorites) onAddNoteClick() },
-                tint = MaterialTheme.colorScheme.primary
-            )
+                    .size(80.dp)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clickable { if (!isFavorites) onAddNoteClick() },
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
             Spacer(Modifier.height(16.dp))
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center
             )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Tus notas aparecerán aquí organizadas.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            if (!isFavorites) {
+                Spacer(Modifier.height(24.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "¡Crea tu primera nota!",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.ArrowDownward,
+                        contentDescription = "Flecha hacia abajo",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -539,65 +776,135 @@ fun CategoryManagerDialog(
     var categoryToDelete by remember { mutableStateOf<Category?>(null) }
     var newCategoryName by remember { mutableStateOf("") }
     var editCategoryName by remember { mutableStateOf("") }
-    // Estados para emojis
     var newCategoryEmoji by remember { mutableStateOf("📝") }
     var editCategoryEmoji by remember { mutableStateOf("📝") }
 
     val scrollState = rememberScrollState()
 
-    // Lista de emojis sugeridos
     val emojiChoices = listOf(
         "📝","📚","💡","✅","📌","⭐","🔥","🏷️","🧠","🛒","🎯","🧹","💬","📅","🧪","📈","🛠️","🧭","✍️","🍽️","🏃","🛏️","🌱"
     )
 
-    // Diálogo para agregar/editar emoji
     var showEmojiPickerForAdd by remember { mutableStateOf(false) }
     var showEmojiPickerForEdit by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onClose,
-        title = { Text("Categorías") },
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Text(
+                "Gestión de Categorías",
+                style = MaterialTheme.typography.titleLarge
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 120.dp, max = 420.dp)
+                    .heightIn(min = 220.dp, max = 450.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Text(
+                    text = "Categorías existentes",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
                 Column(
                     modifier = Modifier
                         .weight(1f, fill = true)
                         .verticalScroll(scrollState)
-                        .fillMaxWidth()
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    categories.forEach { category ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                    if (categories.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(category.emoji + " " + category.name, modifier = Modifier.weight(1f))
-                            IconButton(onClick = { onSelectCategory(category.categoryId) }) {
-                                Icon(Icons.Default.Check, contentDescription = "Seleccionar")
-                            }
-                            IconButton(onClick = {
-                                categoryToEdit = category
-                                editCategoryName = category.name
-                                editCategoryEmoji = category.emoji
-                                showEditDialog = true
-                            }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Editar")
-                            }
-                            IconButton(onClick = {
-                                categoryToDelete = category
-                                showDeleteDialog = true
-                            }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Eliminar")
+                            Text(
+                                text = "No hay categorías creadas aún",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        categories.forEach { category ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = category.emoji,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        text = category.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    IconButton(
+                                        onClick = { onSelectCategory(category.categoryId) },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(Icons.Default.Check, contentDescription = "Seleccionar", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            categoryToEdit = category
+                                            editCategoryName = category.name
+                                            editCategoryEmoji = category.emoji
+                                            showEditDialog = true
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Editar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            categoryToDelete = category
+                                            showDeleteDialog = true
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                // Fila fija para agregar nueva categoría con emoji
-                Row(verticalAlignment = Alignment.CenterVertically) {
+
+                HorizontalDivider()
+
+                Text(
+                    text = "Nueva categoría",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    AssistChip(
+                        onClick = { showEmojiPickerForAdd = true },
+                        label = { Text(newCategoryEmoji, fontSize = 18.sp) },
+                        shape = RoundedCornerShape(12.dp)
+                    )
                     OutlinedTextField(
                         value = newCategoryName,
                         onValueChange = { raw ->
@@ -605,8 +912,9 @@ fun CategoryManagerDialog(
                             val collapsed = noNewlines.replace(Regex("\\s+"), " ")
                             newCategoryName = collapsed.trim().take(200)
                         },
-                        label = { Text("Nueva categoría") },
+                        label = { Text("Nombre") },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(
                             onDone = {
@@ -620,17 +928,18 @@ fun CategoryManagerDialog(
                         ),
                         modifier = Modifier.weight(1f)
                     )
-                    Spacer(Modifier.width(8.dp))
-                    AssistChip(onClick = { showEmojiPickerForAdd = true }, label = { Text(newCategoryEmoji) })
-                    IconButton(onClick = {
-                        val name = newCategoryName.replace(Regex("\\s+"), " ").trim()
-                        if (name.isNotEmpty()) {
-                            onAddCategory(name.take(200), newCategoryEmoji)
-                            newCategoryName = ""
-                            newCategoryEmoji = "📝"
-                        }
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = "Agregar")
+                    Button(
+                        onClick = {
+                            val name = newCategoryName.replace(Regex("\\s+"), " ").trim()
+                            if (name.isNotEmpty()) {
+                                onAddCategory(name.take(200), newCategoryEmoji)
+                                newCategoryName = ""
+                                newCategoryEmoji = "📝"
+                            }
+                        },
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Crear")
                     }
                 }
             }

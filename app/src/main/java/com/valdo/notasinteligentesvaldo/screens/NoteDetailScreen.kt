@@ -86,6 +86,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.text.font.FontStyle
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -509,9 +510,22 @@ fun NoteDetailScreen(
                 modifier = Modifier.statusBarsPadding()
             )
         },
-        // Evitar duplicar IME: el contenido maneja insets dinámicamente
+        bottomBar = {
+            if (isEditMode) {
+                RichTextToolbar(
+                    onFormatClick = { prefix: String, suffix: String ->
+                        val text = contentValue.text
+                        val start = contentValue.selection.min
+                        val end = contentValue.selection.max
+                        val selected = text.substring(start, end)
+                        val newText = text.substring(0, start) + prefix + selected + suffix + text.substring(end)
+                        val newCursor = start + prefix.length + selected.length + suffix.length
+                        contentValue = TextFieldValue(newText, TextRange(newCursor))
+                    }
+                )
+            }
+        },
         contentWindowInsets = WindowInsets.systemBars,
-        // Bottom bar eliminada para ganar espacio y evitar solapamientos con el IME
     ) { padding ->
         Column(
             modifier = Modifier
@@ -597,9 +611,9 @@ fun NoteDetailScreen(
                             onValueChange = { titleValue = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                                 .focusRequester(titleFocusRequester),
-                            textStyle = MaterialTheme.typography.titleLarge.copy(
+                            textStyle = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             ),
@@ -608,9 +622,9 @@ fun NoteDetailScreen(
                                 Box {
                                     if (titleValue.text.isEmpty()) {
                                         Text(
-                                            "Título (opcional)",
-                                            style = MaterialTheme.typography.titleLarge.copy(
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            "Título de la nota",
+                                            style = MaterialTheme.typography.headlineMedium.copy(
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                                             )
                                         )
@@ -619,7 +633,7 @@ fun NoteDetailScreen(
                                 }
                             }
                         )
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
 
                     if (currentNote!!.isMarkdownEnabled) {
@@ -662,8 +676,6 @@ fun NoteDetailScreen(
                                 contentValue = contentValue,
                                 onContentValueChange = { contentValue = it },
                                 focusRequester = focusRequester,
-                                // Ocupar el alto restante del LazyColumn para que se vea el contenido completo
-                                modifier = Modifier.fillParentMaxHeight(),
                                 requestCenterCursor = { requestCenterCursor(listState) }
                             )
                         }
@@ -678,9 +690,6 @@ fun NoteDetailScreen(
                         .fillMaxSize()
                         .padding(16.dp)
                         .verticalScroll(scrollState)
-                        .pointerInput(currentNote!!.id) {
-                            detectTapGestures(onDoubleTap = { toggleEdit() })
-                        }
                 ) {
                     if (currentNote!!.title.isNotEmpty() && currentNote!!.title != "Nota sin título") {
                         Text(
@@ -1110,7 +1119,7 @@ private fun NoteDetailContentEditor(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp)
-            // Fondo camuflado con el tema (mantiene el 'recuadro' pero sin contraste feo)
+            // Fondo camuflado con el tema
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.02f))
             .padding(8.dp)
     ) {
@@ -1119,10 +1128,9 @@ private fun NoteDetailContentEditor(
             onValueChange = onContentValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight()
                 .focusRequester(focusRequester)
-                // Mantén un mínimo pero permite crecer; evita 'una sola línea'
-                .defaultMinSize(minHeight = 240.dp),
+                // Altura mínima generosa sin colapsar con el teclado
+                .defaultMinSize(minHeight = 350.dp),
             textStyle = MaterialTheme.typography.bodyLarge.copy(
                 fontSize = 18.sp,
                 lineHeight = 28.sp,
@@ -1151,5 +1159,42 @@ private fun NoteDetailContentEditor(
     LaunchedEffect(contentValue.text, contentValue.selection) {
         delay(16)
         requestCenterCursor()
+    }
+}
+
+@Composable
+private fun RichTextToolbar(
+    onFormatClick: (prefix: String, suffix: String) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding(),
+        tonalElevation = 4.dp,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { onFormatClick("**", "**") }, modifier = Modifier.size(36.dp)) {
+                Text("B", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            }
+            IconButton(onClick = { onFormatClick("*", "*") }, modifier = Modifier.size(36.dp)) {
+                Text("I", fontStyle = FontStyle.Italic, style = MaterialTheme.typography.titleMedium)
+            }
+            IconButton(onClick = { onFormatClick("# ", "") }, modifier = Modifier.size(36.dp)) {
+                Text("H", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+            }
+            IconButton(onClick = { onFormatClick("- ", "") }, modifier = Modifier.size(36.dp)) {
+                Icon(painter = painterResource(id = R.drawable.format_list_bullete), contentDescription = "Lista", modifier = Modifier.size(20.dp))
+            }
+            IconButton(onClick = { onFormatClick("`", "`") }, modifier = Modifier.size(36.dp)) {
+                Icon(painter = painterResource(id = R.drawable.code_24px), contentDescription = "Código", modifier = Modifier.size(20.dp))
+            }
+        }
     }
 }

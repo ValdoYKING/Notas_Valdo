@@ -1,49 +1,37 @@
 package com.valdo.notasinteligentesvaldo.components
 
 import android.os.SystemClock
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.valdo.notasinteligentesvaldo.models.Note
-import com.valdo.notasinteligentesvaldo.util.NoteActions
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlinx.coroutines.isActive
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.valdo.notasinteligentesvaldo.ui.theme.LocalOledDarkMode
+import kotlinx.coroutines.delay
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
- * Tarjeta de nota optimizada para listas con soporte de Markdown (preview truncado).
+ * Tarjeta de nota optimizada con animación de doble toque estilo Instagram (resorte + partículas de mini corazones).
  */
 @Composable
 fun NoteCard(
@@ -52,156 +40,146 @@ fun NoteCard(
     onDoubleTapFavorite: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit,
     onShowMessage: (String) -> Unit,
-    onShareRequest: (Note) -> Unit
+    onShareRequest: (Note) -> Unit,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onSelectToggle: (Note) -> Unit = {},
+    onLongPress: (Note) -> Unit = {}
 ) {
-    // Precalcular formateador una vez por composición del item
     val dateFormatter = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
 
-    // Precomputar valores derivados para evitar trabajo en recomposiciones
     val previewText = remember(note.content) {
         if (note.content.length <= 120) note.content else note.content.take(120) + "..."
     }
     val markdownPlainPreview = remember(note.content) {
-        // Sustituir formato markdown por una vista plana para evitar uso de MarkdownText (crash coil)
         note.content
             .replace(Regex("`{1,3}.*?`"), "")
             .replace(Regex("[*_~`>#-]"), "")
-            .replace(Regex("!\\[[^]]*]\\([^)]*\\)"), "") // imágenes
-            .replace(Regex("\\[[^]]+]\\([^)]*\\)"), "") // links
+            .replace(Regex("!\\[[^]]*]\\([^)]*\\)"), "")
+            .replace(Regex("\\[[^]]+]\\([^)]*\\)"), "")
             .take(200) + if (note.content.length > 200) "..." else ""
     }
     val editedAtText = remember(note.timestamp) {
         "Editado: ${dateFormatter.format(Date(note.timestamp))}"
     }
 
-    // Estados de animación para doble toque
     var showHeart by remember { mutableStateOf(false) }
-    val blurRadius by animateDpAsState(targetValue = if (showHeart) 10.dp else 0.dp, label = "blurAnim")
-    val context = LocalContext.current
+    
+    // Partículas flotantes (mini corazones) para el doble toque
+    data class MiniHeart(val id: Int, val startX: Float, val startY: Float, val targetX: Float, val targetY: Float)
+    val miniHearts = remember { mutableStateListOf<MiniHeart>() }
 
-    // Debounce de clic para evitar aperturas múltiples por taps rápidos
+    var heartScale by remember { mutableStateOf(0.4f) }
+    var heartAlpha by remember { mutableStateOf(0f) }
+    var heartRotation by remember { mutableStateOf(-20f) }
+
     var lastOpenTime by remember { mutableLongStateOf(0L) }
     val clickDebounceMs = 600L
 
-    // Estado para el overlay de acciones
-    var showActions by remember { mutableStateOf(false) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-
-    // Estrellas animadas más pequeñas y numerosas
-    data class Star(var x: Float, var y: Float, var vx: Float, var vy: Float, var size: Float)
-    val stars = remember { mutableStateListOf<Star>() }
-    val localDensity = LocalDensity.current
     val haptic = LocalHapticFeedback.current
-
-    // Ajuste: densidad para escalar cantidad/velocidad de estrellas
-    val densityScale = LocalDensity.current.density // ~1-4
-    val baseCount = 70
-    val starCount = ((baseCount * densityScale).coerceIn(60f, 120f)).toInt()
-    val speedFactor = 1f / (3500f / densityScale) // velocidad relativa
-
-    LaunchedEffect(showActions, starCount) {
-        if (showActions && stars.isEmpty()) {
-            stars.clear()
-            // Inicializa estrellas
-            repeat(starCount) {
-                stars += Star(
-                    x = (0..1000).random() / 1000f,
-                    y = (0..1000).random() / 1000f,
-                    vx = ((-4..4).random() * speedFactor / 1000f),
-                    vy = ((-4..4).random() * speedFactor / 1000f),
-                    size = with(localDensity) { ((1..3).random() * 0.35f).dp.toPx() } // más pequeños
-                )
-            }
-        }
-        // Animación lenta
-        if (showActions) {
-            // Vibración / haptic feedback al mostrarse
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            // Autodismiss tras 5s si no se eligió nada
-            val startedAt = SystemClock.uptimeMillis()
-            while (isActive && showActions) {
-                stars.forEach { s ->
-                    s.x += s.vx; s.y += s.vy
-                    if (s.x < 0f) s.x = 1f; if (s.x > 1f) s.x = 0f
-                    if (s.y < 0f) s.y = 1f; if (s.y > 1f) s.y = 0f
-                }
-                if (SystemClock.uptimeMillis() - startedAt > 5000L) {
-                    showActions = false
-                }
-                kotlinx.coroutines.delay(40) // movimiento más lento
-            }
-        }
-    }
-
     val oledMode = LocalOledDarkMode.current
     val cardShape = MaterialTheme.shapes.medium
+    val outlineColor = MaterialTheme.colorScheme.outlineVariant
+    val borderColor = when {
+        isSelected -> MaterialTheme.colorScheme.primary
+        oledMode -> Color.White.copy(alpha = 0.2f)
+        else -> outlineColor
+    }
+    val borderWidth = if (isSelected) 2.dp else if (oledMode) 1.25.dp else 1.dp
 
     Card(
         shape = cardShape,
         modifier = Modifier
             .padding(8.dp)
             .fillMaxWidth()
-            .then(
-                if (oledMode) Modifier.border(1.25.dp, Color.White.copy(alpha = 0.2f), cardShape) else Modifier
-            )
-            .pointerInput(note.id) {
+            .border(borderWidth, borderColor, cardShape)
+            .pointerInput(note.id, isSelectionMode) {
                 detectTapGestures(
                     onDoubleTap = {
-                        // Animación visual: blur + corazón
-                        showHeart = true
-                        // Disparar callback para marcar como favorita si aún no lo es
-                        if (!note.isFavorite) {
-                            onDoubleTapFavorite(note)
+                        if (!isSelectionMode) {
+                            showHeart = true
+                            if (!note.isFavorite) {
+                                onDoubleTapFavorite(note)
+                            }
                         }
                     },
                     onLongPress = {
-                        // Mostrar acciones al mantener presionado
-                        showActions = true
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLongPress(note)
                     },
                     onTap = {
-                        if (!showActions) {
-                            val now = SystemClock.uptimeMillis()
-                            if (now - lastOpenTime > clickDebounceMs) {
-                                lastOpenTime = now
+                        val now = SystemClock.uptimeMillis()
+                        if (now - lastOpenTime > clickDebounceMs) {
+                            lastOpenTime = now
+                            if (isSelectionMode) {
+                                onSelectToggle(note)
+                            } else {
                                 onNoteClick(note)
                             }
-                        } else {
-                            // Si está abierto el overlay y se hace tap fuera de botones, cerramos
-                            showActions = false
                         }
                     }
                 )
             },
         colors = CardDefaults.cardColors(
-            containerColor = if (oledMode) Color.Black else MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+            } else if (oledMode) {
+                Color.Black
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            }
         )
     ) {
-        // Root Box SIN padding para que overlay cubra toda el área
         Box(Modifier.fillMaxWidth()) {
-            val effectiveBlur = when {
-                showActions -> 24.dp // blur más fuerte durante overlay
-                showHeart -> blurRadius
-                else -> 0.dp
-            }
-            // Contenido con padding interno
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .blur(effectiveBlur)
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (note.title.isNotEmpty() && note.title != "Nota sin título") {
-                    Text(
-                        text = note.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = note.title,
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isSelectionMode) {
+                            Checkbox(
+                                checked = isSelected,
+                                onCheckedChange = { onSelectToggle(note) },
+                                modifier = Modifier.size(24.dp)
+                            )
+                        } else if (note.isFavorite) {
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = "Favorita",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                } else if (isSelectionMode) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = { onSelectToggle(note) },
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
 
                 if (note.isMarkdownEnabled) {
-                    // Mostrar preview plano sin markdown para evitar crash
                     Text(
                         text = markdownPlainPreview,
                         style = MaterialTheme.typography.bodyMedium,
@@ -226,137 +204,89 @@ fun NoteCard(
                 )
             }
 
-            // Corazón centrado con animación (similar a Instagram)
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showHeart && !showActions,
-                enter = fadeIn(animationSpec = tween(150)) + scaleIn(initialScale = 0.6f, animationSpec = tween(250)),
-                exit = fadeOut(animationSpec = tween(200)) + scaleOut(targetScale = 0.8f, animationSpec = tween(200)),
-                modifier = Modifier.align(Alignment.Center)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Favorite,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(96.dp)
+            // Corazón animado con física de resorte (Spring) + mini corazones flotantes
+            if (showHeart) {
+                val scaleAnim by animateFloatAsState(
+                    targetValue = heartScale,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    ),
+                    label = "heartScale"
                 )
-            }
+                val alphaAnim by animateFloatAsState(
+                    targetValue = heartAlpha,
+                    animationSpec = tween(200),
+                    label = "heartAlpha"
+                )
+                val rotAnim by animateFloatAsState(
+                    targetValue = heartRotation,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "heartRot"
+                )
 
-            // Overlay acciones: ocupa todo el espacio, sin panel, solo íconos y estrellas
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showActions,
-                enter = fadeIn() + scaleIn(initialScale = 0.95f),
-                exit = fadeOut() + scaleOut(targetScale = 0.95f),
-                modifier = Modifier.matchParentSize()
-            ) {
-                val isDark = isSystemInDarkTheme()
-                val scrimAlpha = if (isDark) 0.55f else 0.65f
-                Box(Modifier.matchParentSize()) {
-                    // Scrim + estrellas pequeñas
-                    Box(Modifier.matchParentSize().blur(12.dp).background(MaterialTheme.colorScheme.surface.copy(alpha = scrimAlpha)))
-                    val starColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                    Canvas(Modifier.matchParentSize()) {
-                        stars.forEach { s ->
-                            drawCircle(color = starColor, radius = s.size, center = Offset(s.x * size.width, s.y * size.height))
-                        }
-                    }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .graphicsLayer(
+                            scaleX = scaleAnim,
+                            scaleY = scaleAnim,
+                            rotationZ = rotAnim,
+                            alpha = alphaAnim
+                        )
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Favorite,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(96.dp)
+                    )
 
-                    // Composable reutilizable para íconos con escala y haptic
-                    @Composable
-                    fun ActionIcon(
-                        image: androidx.compose.ui.graphics.vector.ImageVector,
-                        contentDescription: String,
-                        tint: Color,
-                        align: Alignment,
-                        hapticType: HapticFeedbackType = HapticFeedbackType.TextHandleMove,
-                        onClick: () -> Unit
-                    ) {
-                        var pressed by remember { mutableStateOf(false) }
-                        val scale by animateFloatAsState(if (pressed) 0.85f else 1f, label = "iconScale")
-                        IconButton(
-                            onClick = {
-                                haptic.performHapticFeedback(hapticType)
-                                onClick()
-                            },
+                    // Mini corazones flotantes
+                    miniHearts.forEach { mh ->
+                        val animProgress by animateFloatAsState(
+                            targetValue = if (heartAlpha > 0f) 1f else 0f,
+                            animationSpec = tween(500),
+                            label = "miniHeart"
+                        )
+                        val currX = mh.startX + (mh.targetX * animProgress)
+                        val currY = mh.startY + (mh.targetY * animProgress)
+                        val currAlpha = 1f - animProgress
+
+                        Icon(
+                            imageVector = Icons.Filled.Favorite,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = currAlpha),
                             modifier = Modifier
-                                .align(align)
-                                .graphicsLayer(scaleX = scale, scaleY = scale)
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onPress = {
-                                            pressed = true
-                                            tryAwaitRelease()
-                                            pressed = false
-                                        }
-                                    )
-                                }
-                                .padding(4.dp)
-                        ) {
-                            Icon(image, contentDescription = contentDescription, tint = tint)
-                        }
+                                .size(24.dp)
+                                .offset(x = currX.dp, y = currY.dp)
+                        )
                     }
-
-                    // Copiar (arriba izquierda)
-                    ActionIcon(
-                        image = Icons.Filled.ContentCopy,
-                        contentDescription = "Copiar",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        align = Alignment.TopStart,
-                        onClick = {
-                            NoteActions.copyToClipboard(context, note.content)
-                            onShowMessage("Nota copiada al portapapeles")
-                            showActions = false
-                        }
-                    )
-                    // Compartir ahora llama al callback y cierra overlay
-                    ActionIcon(
-                        image = Icons.Filled.Share,
-                        contentDescription = "Compartir",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        align = Alignment.TopEnd,
-                        onClick = {
-                            showActions = false
-                            onShareRequest(note)
-                        }
-                    )
-                    // Eliminar (abajo centro) -> diálogo confirmación
-                    ActionIcon(
-                        image = Icons.Filled.Delete,
-                        contentDescription = "Eliminar",
-                        tint = MaterialTheme.colorScheme.error,
-                        align = Alignment.BottomCenter,
-                        hapticType = HapticFeedbackType.LongPress,
-                        onClick = { showDeleteConfirm = true }
-                    )
                 }
             }
         }
     }
 
-    // Diálogo de confirmación de eliminación
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Eliminar nota") },
-            text = { Text("¿Seguro que deseas eliminar esta nota?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDeleteNote(note)
-                    onShowMessage("Nota eliminada")
-                    showDeleteConfirm = false
-                    showActions = false
-                }) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
-            }
-        )
-    }
-
-    // Temporizador para ocultar el corazón y quitar blur
     LaunchedEffect(showHeart) {
         if (showHeart) {
-            kotlinx.coroutines.delay(600)
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            miniHearts.clear()
+            repeat(4) { i ->
+                val angle = (i * 90f) + (-20..20).random()
+                val dist = (35..75).random().toFloat()
+                val tx = cos(Math.toRadians(angle.toDouble())).toFloat() * dist
+                val ty = sin(Math.toRadians(angle.toDouble())).toFloat() * dist - 35f
+                miniHearts.add(MiniHeart(i, 0f, 0f, tx, ty))
+            }
+            heartScale = 1.15f
+            heartAlpha = 1f
+            heartRotation = 0f
+            delay(550)
+            heartScale = 0.7f
+            heartAlpha = 0f
+            delay(150)
             showHeart = false
+            miniHearts.clear()
         }
     }
 }
