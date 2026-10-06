@@ -45,6 +45,7 @@
     <style name="Theme.NotasInteligentesValdo.Splash" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
         <item name="android:windowNoTitle">true</item>
+        <item name="android:windowDisablePreview">true</item>
 
         <!-- Mantener consistencia en el primer frame (íconos oscuros) -->
         <item name="android:statusBarColor">@android:color/transparent</item>

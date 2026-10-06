@@ -15,7 +15,7 @@ data class Note(
     var timestamp: Long = System.currentTimeMillis(),  // Última modificación
     var timestampInit: Long = System.currentTimeMillis(),  // Fecha creación (valor por defecto: ahora)
     val location: String? = null,  // Formato: "lat,long" o null si no aplica
-    val notificationTime: Long? = null,  // Tiempo asociado a la notificación (en minutos o millis según implementación)
+    val notificationTime: Long? = null,  // Timestamp absoluto en epoch millis del momento exacto en que debe dispararse el recordatorio.
     val isFavorite: Boolean = false,  // Favorito (default: false)
     val isMarkdownEnabled: Boolean = false,  // Si soporta Markdown (default: false)
     // NUEVO: indica si la notificación configurada para esta nota debe ser persistente
