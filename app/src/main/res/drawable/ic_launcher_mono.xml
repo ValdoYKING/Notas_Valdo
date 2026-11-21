@@ -5,33 +5,23 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Cuaderno principal (Silueta negra sólida) -->
+    <!-- Silueta exterior de la Tablet (Negro sólido) -->
     <path
         android:fillColor="#000000"
-        android:pathData="M24,22h60a7,7 0 0,1 7,7v50a7,7 0 0,1 -7,7H24a7,7 0 0,1 -7,-7V29a7,7 0 0,1 7,-7z" />
+        android:pathData="M24,18h60a8,8 0 0,1 8,8v56a8,8 0 0,1 -8,8H24a8,8 0 0,1 -8,-8V26a8,8 0 0,1 8,-8z" />
 
-    <!-- Banda superior de anillado (Silueta negra con separaciones) -->
+    <!-- Recorte de la pantalla de la Tablet (Líneas / Renglones de texto en la pantalla) -->
     <path
         android:fillColor="#000000"
-        android:pathData="M24,22h60v8H24z" />
+        android:pathData="M26,33h26a2,2 0 0,1 0,4H26a2,2 0 0,1 0,-4zM26,42h38a2,2 0 0,1 0,4H26a2,2 0 0,1 0,-4zM26,51h42a2,2 0 0,1 0,4H26a2,2 0 0,1 0,-4zM26,60h28a2,2 0 0,1 0,4H26a2,2 0 0,1 0,-4z" />
 
-    <!-- Anillos (Puntos negros flotantes) -->
+    <!-- Lápiz / Stylus en diagonal cruzando la Tablet (Silueta negra) -->
     <path
         android:fillColor="#000000"
-        android:pathData="M32,25a2,2 0 1,1 0,4a2,2 0 0,1 0,-4zM44,25a2,2 0 1,1 0,4a2,2 0 1,1 0,-4zM56,25a2,2 0 1,1 0,4a2,2 0 1,1 0,-4zM68,25a2,2 0 1,1 0,4a2,2 0 1,1 0,-4zM76,25a2,2 0 1,1 0,4a2,2 0 1,1 0,-4z" />
+        android:pathData="M80,41L67,75L62,80L65,73L78,39a2,2 0 0,1 2.8,0l0,0a2,2 0 0,1 0,2.8z" />
 
-    <!-- Líneas de notas (Trazos negros limpios) -->
+    <!-- Candado de seguridad en la esquina inferior -->
     <path
         android:fillColor="#000000"
-        android:pathData="M28,40h32v3H28zM28,49h44v3H28zM28,58h50v3H28zM28,67h38v3H28z" />
-
-    <!-- Pluma / Stylus (Silueta negra en diagonal) -->
-    <path
-        android:fillColor="#000000"
-        android:pathData="M78,44L63,59L58,74L63,71L78,56z" />
-
-    <!-- Insignia de candado (Bloque negro en la esquina) -->
-    <path
-        android:fillColor="#000000"
-        android:pathData="M70,68h16a5,5 0 0,1 5,5v11a5,5 0 0,1 -5,5H70a5,5 0 0,1 -5,-5V73a5,5 0 0,1 5,-5z" />
+        android:pathData="M73,66h14a4,4 0 0,1 4,4v10a4,4 0 0,1 -4,4H73a4,4 0 0,1 -4,-4V70a4,4 0 0,1 4,-4z" />
 </vector>
