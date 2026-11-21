@@ -93,4 +93,7 @@ dependencies {
 
     // Autenticación biométrica
     implementation(libs.androidx.biometric)
+
+    // Lottie Animation para Splash Screen
+    implementation("com.airbnb.android:lottie-compose:6.7.1")
 }

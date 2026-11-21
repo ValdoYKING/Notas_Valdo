@@ -100,10 +100,17 @@ class MainActivity : FragmentActivity() {
             NotasInteligentesValdoTheme(darkTheme = darkTheme, darkPlus = darkPlus) {
                 // Surface define el fondo principal de la app
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    // Inicia la navegación principal, pasando el ViewModel global
-                    AppNavigation(
-                        viewModel = noteViewModel // ViewModel compartido en toda la app
-                    )
+                    val showSplash = remember { androidx.compose.runtime.mutableStateOf(true) }
+                    if (showSplash.value) {
+                        com.valdo.notasinteligentesvaldo.screens.SplashScreen(
+                            onSplashFinished = { showSplash.value = false }
+                        )
+                    } else {
+                        // Inicia la navegación principal, pasando el ViewModel global
+                        AppNavigation(
+                            viewModel = noteViewModel // ViewModel compartido en toda la app
+                        )
+                    }
                 }
             }
         }

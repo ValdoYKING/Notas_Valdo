@@ -13,6 +13,7 @@ import java.io.File
 
 /**
  * Utilidades reutilizables para acciones sobre notas (copiar, compartir, PDF).
+ * Garantiza la concesión segura de permisos URI para evitar errores en receptores externos.
  */
 object NoteActions {
     fun copyToClipboard(context: Context, text: String) {
@@ -40,6 +41,7 @@ object NoteActions {
         val outFile = File(context.cacheDir, fileName)
         val body = if (asMarkdown && title.isNotBlank()) "# $title\n\n$content" else (if (title.isNotBlank()) "$title\n\n$content" else content)
         outFile.writeText(body, Charsets.UTF_8)
+
         val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", outFile)
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = if (asMarkdown) "text/markdown" else "text/plain"
@@ -47,6 +49,7 @@ object NoteActions {
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_TEXT, body)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            clipData = ClipData.newUri(context.contentResolver, safeTitle, uri)
         }
         context.startActivity(Intent.createChooser(sendIntent, "Compartir archivo"))
     }
@@ -60,6 +63,7 @@ object NoteActions {
                 putExtra(Intent.EXTRA_SUBJECT, if (title.isNotBlank()) title else "Nota")
                 type = "application/pdf"
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                clipData = ClipData.newUri(context.contentResolver, "PDF Note", uri)
             }
             context.startActivity(Intent.createChooser(sendIntent, "Compartir PDF"))
         } catch (_: Exception) {
