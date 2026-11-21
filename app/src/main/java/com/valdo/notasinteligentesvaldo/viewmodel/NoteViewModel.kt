@@ -67,6 +67,18 @@ class NoteViewModel(private val noteDao: NoteDao) : ViewModel() {
     private var categoryWithNotesJob: Job? = null
     private var noteWithCategoriesJob: Job? = null
 
+    // --- Estado de Seguridad de la Bóveda ---
+    private val _isVaultUnlocked = MutableStateFlow(false)
+    val isVaultUnlocked: StateFlow<Boolean> = _isVaultUnlocked.asStateFlow()
+
+    fun unlockVault() {
+        _isVaultUnlocked.value = true
+    }
+
+    fun lockVault() {
+        _isVaultUnlocked.value = false
+    }
+
     // --- Documento externo / navegación ---
     private val _importedNoteId = MutableSharedFlow<Int>(extraBufferCapacity = 1)
     val importedNoteId: SharedFlow<Int> = _importedNoteId

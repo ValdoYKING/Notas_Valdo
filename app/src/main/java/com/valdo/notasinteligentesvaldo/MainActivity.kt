@@ -64,7 +64,9 @@ class MainActivity : FragmentActivity() {
         }
 
         super.onCreate(savedInstanceState)
-        ProfileInstaller.writeProfile(this)
+        lifecycleScope.launch(Dispatchers.IO) {
+            ProfileInstaller.writeProfile(this@MainActivity)
+        }
 
         // NUEVO: solicitar permiso de notificaciones en Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -105,6 +107,12 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Bloquear bóveda al salir de la app o ir al fondo
+        noteViewModel.lockVault()
     }
 
     // Cambiar a Intent no nulo para coincidir con la firma de Activity

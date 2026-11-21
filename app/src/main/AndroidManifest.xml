@@ -28,14 +28,14 @@
         android:theme="@style/Theme.NotasInteligentesValdo"
         tools:targetApi="31">
 
-        <!-- Actividad del cropper (librería) requiere Theme.AppCompat -->
+        <!-- Actividad del cropper (librería) -->
         <activity
             android:name="com.canhub.cropper.CropImageActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme_NotasInteligentesValdo_Cropper"
             tools:replace="android:exported,android:theme" />
 
-        <!-- Actividad propia del cropper para evitar la deprecacion -->
+        <!-- Actividad propia del cropper para editor visual personalizado -->
         <activity
             android:name=".cropper.AppCropImageActivity"
             android:exported="false"
@@ -52,16 +52,32 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Permitir abrir documentos .txt y .md desde otras apps (Open With) -->
+            <!-- Permitir abrir documentos .txt, .md y .markdown desde cualquier explorador de archivos -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/x-markdown" />
                 <data android:mimeType="text/*" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.md" />
+                <data android:pathPattern=".*\\.markdown" />
+                <data android:pathPattern=".*\\.txt" />
+            </intent-filter>
+
             <!-- Recibir contenido compartido como texto/archivo (uno o varios) -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -70,6 +86,7 @@
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/x-markdown" />
                 <data android:mimeType="text/*" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
@@ -78,6 +95,7 @@
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/x-markdown" />
                 <data android:mimeType="text/*" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
 

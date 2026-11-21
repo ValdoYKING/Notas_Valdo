@@ -12,7 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.valdo.notasinteligentesvaldo.auth.BiometricAuthHelper
-import androidx.activity.ComponentActivity
+import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
 import androidx.fragment.app.FragmentActivity
 
 /**
@@ -22,6 +22,7 @@ import androidx.fragment.app.FragmentActivity
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VaultAuthScreen(
+    viewModel: NoteViewModel,
     navController: NavController
 ) {
     val context = LocalContext.current
@@ -42,6 +43,7 @@ fun VaultAuthScreen(
                 title = "Acceder a la Bóveda",
                 subtitle = "Verifica tu identidad para continuar",
                 onSuccess = {
+                    viewModel.unlockVault()
                     // Navegar a la pantalla de la bóveda
                     navController.navigate("vault") {
                         popUpTo("vaultAuth") { inclusive = true }
@@ -150,4 +152,3 @@ fun VaultAuthScreen(
         }
     }
 }
-

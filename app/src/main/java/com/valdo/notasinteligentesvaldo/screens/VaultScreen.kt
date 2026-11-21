@@ -40,6 +40,16 @@ fun VaultScreen(
     filterType: String = "all"
 ) {
     val scope = rememberCoroutineScope()
+    val isVaultUnlocked by viewModel.isVaultUnlocked.collectAsState()
+
+    // Redirigir a autenticación si la bóveda está bloqueada
+    LaunchedEffect(isVaultUnlocked) {
+        if (!isVaultUnlocked) {
+            navController.navigate("vaultAuth") {
+                popUpTo("notes?filter=all") { inclusive = false }
+            }
+        }
+    }
 
     // Estados de notas secretas
     val allSecretNotesState by viewModel.secretNotes.collectAsState()
@@ -88,6 +98,10 @@ fun VaultScreen(
                     }
                 },
                 actions = {
+                    // Botón para bloquear manualmente la bóveda
+                    IconButton(onClick = { viewModel.lockVault() }) {
+                        Icon(Icons.Default.Lock, contentDescription = "Bloquear bóveda")
+                    }
                     // Botón para gestionar categorías
                     IconButton(onClick = { showCategoryManager = true }) {
                         Icon(Icons.Default.Menu, contentDescription = "Categorías")
@@ -297,7 +311,7 @@ fun VaultNoteCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Fecha
-            val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+            val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
             Text(
                 text = dateFormat.format(Date(note.timestamp)),
                 style = MaterialTheme.typography.labelSmall,

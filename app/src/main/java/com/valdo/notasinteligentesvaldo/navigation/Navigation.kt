@@ -80,14 +80,32 @@ fun AppNavigation(
         }
 
         val saved = UiPrefs.lastRouteFlow(context).first()
-        val safeSaved = if (
-            !saved.isNullOrBlank() &&
-            (saved in allowedRestoreRoutes || saved.startsWith("addNote?defaultCategoryId="))
-        ) saved else null
+        val isVaultUnlocked = viewModel.isVaultUnlocked.value
 
-        if (!safeSaved.isNullOrBlank() && safeSaved != "notes?filter=all") {
-            android.util.Log.d("NAV_DEBUG", "Restaurando ruta guardada: $safeSaved")
-            navigateSafe(safeSaved) {
+        var targetRoute: String? = null
+        if (!saved.isNullOrBlank()) {
+            if (saved.startsWith("vault") || saved == "addSecretNote") {
+                targetRoute = if (isVaultUnlocked) saved else "vaultAuth"
+            } else if (saved.startsWith("noteDetail/")) {
+                // Si es detalle de nota, verificar si es secreta
+                val noteId = saved.substringAfter("noteDetail/").substringBefore("?").toIntOrNull()
+                if (noteId != null) {
+                    val note = viewModel.allNotes.value.find { it.id == noteId }
+                        ?: viewModel.secretNotes.value.find { it.id == noteId }
+                    if (note?.isSecret == true && !isVaultUnlocked) {
+                        targetRoute = "vaultAuth"
+                    } else if (note != null) {
+                        targetRoute = saved
+                    }
+                }
+            } else if (saved in allowedRestoreRoutes || saved.startsWith("addNote?defaultCategoryId=")) {
+                targetRoute = saved
+            }
+        }
+
+        if (!targetRoute.isNullOrBlank() && targetRoute != "notes?filter=all") {
+            android.util.Log.d("NAV_DEBUG", "Restaurando ruta guardada: $targetRoute")
+            navigateSafe(targetRoute) {
                 popUpTo(navController.graph.startDestinationId) { inclusive = false }
             }
         } else {
@@ -330,7 +348,10 @@ fun AppNavigation(
             enterTransition = { fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) },
             exitTransition = { fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) }
         ) {
-            VaultAuthScreen(navController = navController)
+            VaultAuthScreen(
+                viewModel = viewModel,
+                navController = navController
+            )
         }
 
         // NUEVO: Pantalla de la Bóveda (notas secretas)

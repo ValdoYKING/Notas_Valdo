@@ -128,6 +128,17 @@ fun NoteDetailScreen(
 
     // MODIFICADO: Detectar automáticamente si la nota es secreta y usar las categorías correspondientes
     val isNoteSecret = currentNote?.isSecret ?: isVaultMode
+    val isVaultUnlocked by viewModel.isVaultUnlocked.collectAsState()
+
+    // Si la nota es secreta y la bóveda está bloqueada, exigir autenticación
+    LaunchedEffect(isNoteSecret, isVaultUnlocked) {
+        if (isNoteSecret && !isVaultUnlocked) {
+            navController.navigate("vaultAuth") {
+                popUpTo("notes?filter=all") { inclusive = false }
+            }
+        }
+    }
+
     val allCategories by if (isNoteSecret) {
         viewModel.secretCategories.collectAsState()
     } else {
@@ -703,16 +714,12 @@ fun NoteDetailScreen(
                     }
 
                     if (currentNote!!.isMarkdownEnabled) {
-                        Text(
-                            text = "Vista en formato Markdown. La selección/copia directa no está soportada por Compose.",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        ThemedMarkdown(
-                            content = currentNote!!.content,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        SelectionContainer {
+                            ThemedMarkdown(
+                                content = currentNote!!.content,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     } else {
                         SelectionContainer {
                             Text(
@@ -1099,9 +1106,11 @@ private fun ThemedMarkdown(
 ) {
     val markdownColor = MaterialTheme.colorScheme.onSurface
     CompositionLocalProvider(LocalContentColor provides markdownColor) {
-        ProvideTextStyle(MaterialTheme.typography.bodyLarge.copy(color = markdownColor)) {
-            RichText(modifier = modifier) {
-                Markdown(content)
+        ProvideTextStyle(MaterialTheme.typography.bodyLarge.copy(color = markdownColor, lineHeight = 26.sp)) {
+            SelectionContainer {
+                RichText(modifier = modifier) {
+                    Markdown(content)
+                }
             }
         }
     }

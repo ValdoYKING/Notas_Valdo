@@ -6,6 +6,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -13,10 +14,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.valdo.notasinteligentesvaldo.R
+import androidx.compose.ui.unit.sp
 import com.valdo.notasinteligentesvaldo.viewmodel.NoteViewModel
 import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.material3.RichText
@@ -46,20 +46,25 @@ fun ExternalViewerScreen(
                     }
                 },
                 actions = {
-                    // Acción opcional: Guardar como nota (no automático)
                     if (doc != null) {
-                        IconButton(onClick = {
-                            viewModel.importExternalNote(
-                                title = doc!!.title,
-                                content = doc!!.content,
-                                asMarkdown = doc!!.isMarkdown
-                            )
-                            // No limpiar aquí; navegación al detalle se hace vía importedNoteId
-                        }) {
+                        Button(
+                            onClick = {
+                                viewModel.importExternalNote(
+                                    title = doc!!.title,
+                                    content = doc!!.content,
+                                    asMarkdown = doc!!.isMarkdown
+                                )
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
                             Icon(
-                                painter = painterResource(id = R.drawable.done_outline),
-                                contentDescription = "Guardar como nota"
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
                             )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Guardar nota")
                         }
                     }
                 }
@@ -85,20 +90,39 @@ fun ExternalViewerScreen(
                 .padding(16.dp)
                 .verticalScroll(scrollState)
         ) {
-            if (doc!!.isMarkdown) {
-                val markdownColor = MaterialTheme.colorScheme.onSurface
-                CompositionLocalProvider(LocalContentColor provides markdownColor) {
-                    ProvideTextStyle(MaterialTheme.typography.bodyLarge.copy(color = markdownColor)) {
-                        RichText(modifier = Modifier.fillMaxWidth()) {
-                            Markdown(doc!!.content)
+            // Insignia de formato
+            AssistChip(
+                onClick = { },
+                label = {
+                    Text(if (doc!!.isMarkdown) "📝 Formato Markdown (.md)" else "📄 Texto Plano (.txt)")
+                },
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            SelectionContainer {
+                if (doc!!.isMarkdown) {
+                    val markdownColor = MaterialTheme.colorScheme.onSurface
+                    CompositionLocalProvider(LocalContentColor provides markdownColor) {
+                        ProvideTextStyle(
+                            MaterialTheme.typography.bodyLarge.copy(
+                                color = markdownColor,
+                                lineHeight = 26.sp
+                            )
+                        ) {
+                            RichText(modifier = Modifier.fillMaxWidth()) {
+                                Markdown(doc!!.content)
+                            }
                         }
                     }
-                }
-            } else {
-                SelectionContainer {
+                } else {
                     Text(
                         text = doc!!.content,
                         style = MaterialTheme.typography.bodyLarge.copy(
+                            lineHeight = 28.sp,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                     )

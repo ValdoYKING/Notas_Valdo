@@ -1,27 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Sombra del bloc de notas -->
     <path
-        android:fillColor="@color/launcher_note"
-        android:pathData="M30,22C24.477,22 20,26.477 20,32V76C20,81.523 24.477,86 30,86H78C83.523,86 88,81.523 88,76V44L66,22H30Z" />
+        android:fillColor="#000000"
+        android:alpha="0.25"
+        android:pathData="M27,25h54a6,6 0 0,1 6,6v52a6,6 0 0,1 -6,6H27a6,6 0 0,1 -6,-6V31a6,6 0 0,1 6,-6z" />
+
+    <!-- Hoja principal del bloc de notas (Blanco puro) -->
     <path
-        android:fillColor="@color/launcher_accent"
-        android:pathData="M66,22V38C66,41.314 68.686,44 72,44H88L66,22Z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M25,23h54a5,5 0 0,1 5,5v52a5,5 0 0,1 -5,5H25a5,5 0 0,1 -5,-5V28a5,5 0 0,1 5,-5z" />
+
+    <!-- Doblez de la esquina superior derecha (Efecto hoja plegada) -->
     <path
-        android:fillColor="@color/launcher_background"
-        android:pathData="M36,50C36,48.895 36.895,48 38,48H70C71.105,48 72,48.895 72,50C72,51.105 71.105,52 70,52H38C36.895,52 36,51.105 36,50Z" />
+        android:fillColor="#E2E8F0"
+        android:pathData="M74,23L84,33H76a2,2 0 0,1 -2,-2V23z" />
+
+    <!-- Línea de margen vertical roja -->
     <path
-        android:fillColor="@color/launcher_background"
-        android:pathData="M36,60C36,58.895 36.895,58 38,58H70C71.105,58 72,58.895 72,60C72,61.105 71.105,62 70,62H38C36.895,62 36,61.105 36,60Z" />
+        android:fillColor="#EF4444"
+        android:pathData="M35,23h2v62h-2z" />
+
+    <!-- Renglones de escritura azul suave -->
     <path
-        android:fillColor="@color/launcher_background"
-        android:pathData="M36,70C36,68.895 36.895,68 38,68H58C59.105,68 60,68.895 60,70C60,71.105 59.105,72 58,72H38C36.895,72 36,71.105 36,70Z" />
+        android:fillColor="#93C5FD"
+        android:pathData="M39,36h38v2H39zM39,46h38v2H39zM39,56h38v2H39zM39,66h38v2H39zM39,76h26v2H39z" />
+
+    <!-- Espirales del anillado (Bloc de Notas) -->
+    <!-- Anillo 1 -->
     <path
-        android:fillColor="@color/launcher_accent"
-        android:pathData="M71.485,67.101L75.374,70.99L63.353,83.011H59.464V79.122L71.485,67.101Z" />
+        android:fillColor="#475569"
+        android:pathData="M31,18a3,3 0 0,1 6,0v8a3,3 0 0,1 -6,0v-8z" />
     <path
-        android:fillColor="@color/launcher_background"
-        android:pathData="M77.495,68.869L73.606,64.98L75.728,62.859C76.899,61.687 78.798,61.687 79.97,62.859L79.616,63.212L79.97,62.859C81.142,64.03 81.142,65.93 79.97,67.101L77.495,68.869Z" />
+        android:fillColor="#94A3B8"
+        android:pathData="M32,18a2,2 0 0,1 4,0v8a2,2 0 0,1 -4,0v-8z" />
+
+    <!-- Anillo 2 -->
+    <path
+        android:fillColor="#475569"
+        android:pathData="M43,18a3,3 0 0,1 6,0v8a3,3 0 0,1 -6,0v-8z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M44,18a2,2 0 0,1 4,0v8a2,2 0 0,1 -4,0v-8z" />
+
+    <!-- Anillo 3 -->
+    <path
+        android:fillColor="#475569"
+        android:pathData="M55,18a3,3 0 0,1 6,0v8a3,3 0 0,1 -6,0v-8z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M56,18a2,2 0 0,1 4,0v8a2,2 0 0,1 -4,0v-8z" />
+
+    <!-- Anillo 4 -->
+    <path
+        android:fillColor="#475569"
+        android:pathData="M67,18a3,3 0 0,1 6,0v8a3,3 0 0,1 -6,0v-8z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M68,18a2,2 0 0,1 4,0v8a2,2 0 0,1 -4,0v-8z" />
+
+    <!-- Pluma / Lápiz inclinado en diagonal (Escribiendo) -->
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M78.5,61.5L66.5,73.5L64,79L69.5,76.5L81.5,64.5z" />
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M64,79L67,78L65,76z" />
+
+    <!-- Candado Dorado de Seguridad (Notas Privadas) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M71,74h12a2,2 0 0,1 2,2v10a2,2 0 0,1 -2,2H71a2,2 0 0,1 -2,-2V76a2,2 0 0,1 2,-2z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M74,74v-3a3,3 0 0,1 6,0v3h-2v-3a1,1 0 0,0 -2,0v3h-2z" />
 </vector>
