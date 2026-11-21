@@ -5,78 +5,67 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Sombra del bloc de notas -->
+    <!-- Sombra del bloc de notas contemporáneo -->
     <path
         android:fillColor="#000000"
-        android:alpha="0.25"
-        android:pathData="M27,25h54a6,6 0 0,1 6,6v52a6,6 0 0,1 -6,6H27a6,6 0 0,1 -6,-6V31a6,6 0 0,1 6,-6z" />
+        android:alpha="0.28"
+        android:pathData="M28,24h52a8,8 0 0,1 8,8v48a8,8 0 0,1 -8,8H28a8,8 0 0,1 -8,-8V32a8,8 0 0,1 8,-8z" />
 
-    <!-- Hoja principal del bloc de notas (Blanco puro) -->
+    <!-- Tarjeta principal del bloc de notas (Blanco neutro suave) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M25,23h54a5,5 0 0,1 5,5v52a5,5 0 0,1 -5,5H25a5,5 0 0,1 -5,-5V28a5,5 0 0,1 5,-5z" />
+        android:pathData="M26,22h56a7,7 0 0,1 7,7v50a7,7 0 0,1 -7,7H26a7,7 0 0,1 -7,-7V29a7,7 0 0,1 7,-7z" />
 
-    <!-- Doblez de la esquina superior derecha (Efecto hoja plegada) -->
+    <!-- Banda/Encabezado superior del cuaderno (Indigo / Violeta moderno) -->
     <path
-        android:fillColor="#E2E8F0"
-        android:pathData="M74,23L84,33H76a2,2 0 0,1 -2,-2V23z" />
+        android:fillColor="#4F46E5"
+        android:pathData="M26,22h56a7,7 0 0,1 7,7v7H19V29a7,7 0 0,1 7,-7z" />
 
-    <!-- Línea de margen vertical roja -->
+    <!-- Troqueles / Anillas minimalistas del encabezado (Estilo libreta moderna) -->
     <path
-        android:fillColor="#EF4444"
-        android:pathData="M35,23h2v62h-2z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,25a2,2 0 1,0 0,4a2,2 0 1,0 0,-4zM44,25a2,2 0 1,0 0,4a2,2 0 1,0 0,-4zM56,25a2,2 0 1,0 0,4a2,2 0 1,0 0,-4zM68,25a2,2 0 1,0 0,4a2,2 0 1,0 0,-4zM76,25a2,2 0 1,0 0,4a2,2 0 1,0 0,-4z" />
 
-    <!-- Renglones de escritura azul suave -->
-    <path
-        android:fillColor="#93C5FD"
-        android:pathData="M39,36h38v2H39zM39,46h38v2H39zM39,56h38v2H39zM39,66h38v2H39zM39,76h26v2H39z" />
-
-    <!-- Espirales del anillado (Bloc de Notas) -->
-    <!-- Anillo 1 -->
-    <path
-        android:fillColor="#475569"
-        android:pathData="M31,18a3,3 0 0,1 6,0v8a3,3 0 0,1 -6,0v-8z" />
-    <path
-        android:fillColor="#94A3B8"
-        android:pathData="M32,18a2,2 0 0,1 4,0v8a2,2 0 0,1 -4,0v-8z" />
-
-    <!-- Anillo 2 -->
-    <path
-        android:fillColor="#475569"
-        android:pathData="M43,18a3,3 0 0,1 6,0v8a3,3 0 0,1 -6,0v-8z" />
-    <path
-        android:fillColor="#94A3B8"
-        android:pathData="M44,18a2,2 0 0,1 4,0v8a2,2 0 0,1 -4,0v-8z" />
-
-    <!-- Anillo 3 -->
-    <path
-        android:fillColor="#475569"
-        android:pathData="M55,18a3,3 0 0,1 6,0v8a3,3 0 0,1 -6,0v-8z" />
-    <path
-        android:fillColor="#94A3B8"
-        android:pathData="M56,18a2,2 0 0,1 4,0v8a2,2 0 0,1 -4,0v-8z" />
-
-    <!-- Anillo 4 -->
-    <path
-        android:fillColor="#475569"
-        android:pathData="M67,18a3,3 0 0,1 6,0v8a3,3 0 0,1 -6,0v-8z" />
-    <path
-        android:fillColor="#94A3B8"
-        android:pathData="M68,18a2,2 0 0,1 4,0v8a2,2 0 0,1 -4,0v-8z" />
-
-    <!-- Pluma / Lápiz inclinado en diagonal (Escribiendo) -->
+    <!-- Líneas de texto estilo pill (Líneas de la nota) -->
     <path
         android:fillColor="#6366F1"
-        android:pathData="M78.5,61.5L66.5,73.5L64,79L69.5,76.5L81.5,64.5z" />
+        android:pathData="M28,42h26a2,2 0 0,1 0,4H28a2,2 0 0,1 0,-4z" />
     <path
-        android:fillColor="#F59E0B"
-        android:pathData="M64,79L67,78L65,76z" />
+        android:fillColor="#CBD5E1"
+        android:pathData="M28,50h38a2,2 0 0,1 0,4H28a2,2 0 0,1 0,-4z" />
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M28,58h44a2,2 0 0,1 0,4H28a2,2 0 0,1 0,-4z" />
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M28,66h24a2,2 0 0,1 0,4H28a2,2 0 0,1 0,-4z" />
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M28,74h16a2,2 0 0,1 0,4H28a2,2 0 0,1 0,-4z" />
 
-    <!-- Candado Dorado de Seguridad (Notas Privadas) -->
+    <!-- Bolígrafo o Stylus contemporáneo estilizado -->
+    <path
+        android:fillColor="#8B5CF6"
+        android:pathData="M78.5,50.5L71.5,57.5L67,71L70.5,67.5L77.5,60.5a2.5,2.5 0 0,0 0,-3.5z" />
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M67,71L70,70L68.5,68.5z" />
+
+    <!-- Emblema de Bóveda / Candado Inteligente (Insignia flotante) -->
+    <!-- Sombra de la insignia -->
+    <path
+        android:fillColor="#000000"
+        android:alpha="0.2"
+        android:pathData="M75,69h14a6,6 0 0,1 6,6v10a6,6 0 0,1 -6,6H75a6,6 0 0,1 -6,-6V75a6,6 0 0,1 6,-6z" />
+    <!-- Fondo de la insignia de seguridad (Dorado elegante) -->
     <path
         android:fillColor="#F59E0B"
-        android:pathData="M71,74h12a2,2 0 0,1 2,2v10a2,2 0 0,1 -2,2H71a2,2 0 0,1 -2,-2V76a2,2 0 0,1 2,-2z" />
+        android:pathData="M74,67h14a5,5 0 0,1 5,5v10a5,5 0 0,1 -5,5H74a5,5 0 0,1 -5,-5V72a5,5 0 0,1 5,-5z" />
+    <!-- Candado minimalista -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M74,74v-3a3,3 0 0,1 6,0v3h-2v-3a1,1 0 0,0 -2,0v3h-2z" />
+        android:pathData="M78,74h6a1,1 0 0,1 1,1v5a1,1 0 0,1 -1,1h-6a1,1 0 0,1 -1,-1v-5a1,1 0 0,1 1,-1z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M79,74v-2a2,2 0 0,1 4,0v2h-1.5v-2a0.5,0.5 0 0,0 -1,0v2h-1.5z" />
 </vector>
